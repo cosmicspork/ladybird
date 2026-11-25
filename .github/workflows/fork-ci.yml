@@ -86,3 +86,38 @@ jobs:
           .github/scripts/fork-report-rebase-failure.sh \
             "Build or tests fail after the daily rebase onto upstream" \
             "The patch stack rebased cleanly onto upstream master (\`${GITHUB_SHA}\`), but the build or tests fail: ${RUN_URL}"
+
+  # When the rebased stack passes, it replaces master. The rebase job records which master it rebased in
+  # refs/fork/rebased-from, and the push is leased on that commit, so a master that moved in the meantime is left alone.
+  promote-rebase:
+    needs: [lint, build-and-test]
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/auto-rebase' && github.repository_owner != 'LadybirdBrowser'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.FORK_REBASE_TOKEN }}
+
+      - name: Move master to the rebased stack
+        run: |
+          git fetch --no-tags origin refs/fork/rebased-from:refs/fork/rebased-from
+          rebased_from=$(git rev-parse refs/fork/rebased-from)
+          if [[ "$(git rev-parse origin/master)" != "${rebased_from}" ]]; then
+            echo "::warning::master moved after the rebase started; leaving it for the next daily run"
+            exit 0
+          fi
+          git push --force-with-lease="refs/heads/master:${rebased_from}" origin "${GITHUB_SHA}:refs/heads/master"
+
+      - name: Report a failure to move master
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          .github/scripts/fork-report-rebase-failure.sh \
+            "Could not move master to the rebased stack" \
+            "The rebased stack (\`${GITHUB_SHA}\`) passed CI, but updating master failed: ${RUN_URL}"
