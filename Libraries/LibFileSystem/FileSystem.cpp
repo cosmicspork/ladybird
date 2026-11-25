@@ -361,6 +361,15 @@ ErrorOr<void> rename_without_replacing(StringView destination_path, StringView s
 
 ErrorOr<void> remove(StringView path, RecursionMode mode)
 {
+    // A link is removed itself, never what it points to.
+    if (is_link(path)) {
+#ifdef AK_OS_WINDOWS
+        if (is_directory(path))
+            return remove_directory(path);
+#endif
+        return remove_file(path);
+    }
+
     if (mode == RecursionMode::Allowed && is_directory(path)) {
         auto di = Core::DirIterator(path, Core::DirIterator::SkipParentAndBaseDir);
         if (di.has_error())

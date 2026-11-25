@@ -1,0 +1,123 @@
+name: Fork CI
+
+# Builds and tests the fork's patch stack. Upstream's own workflows only run in LadybirdBrowser/ladybird, so this file
+# reuses build-and-test.yml with runners that a fork has access to.
+
+on:
+  push:
+    branches: [master, auto-rebase]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    if: github.repository_owner != 'LadybirdBrowser'
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/ladybirdbrowser/ladybird-ci:2026.11.21
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set Up Environment
+        uses: ./.github/actions/setup
+        with:
+          os: 'Linux'
+          arch: 'x86_64'
+          type: 'lint'
+
+      - name: Install the toolchain of the Rust GC lints
+        working-directory: Meta/RustLints
+        run: rustup toolchain install
+
+      - name: Lint
+        run: "${GITHUB_WORKSPACE}/Meta/lint-ci.sh"
+
+      # Only the fork's own commits are linted: everything reachable from upstream master has already passed upstream.
+      - name: Lint commit messages
+        shell: bash
+        run: |
+          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+          git fetch --no-tags https://github.com/LadybirdBrowser/ladybird master
+          status=0
+          for commit in $(git rev-list --no-merges FETCH_HEAD..HEAD); do
+            git log -1 --format=%B "${commit}" > "${RUNNER_TEMP}/message"
+            Meta/lint-commit.sh "${RUNNER_TEMP}/message" || status=1
+          done
+          exit "${status}"
+
+  build-and-test:
+    if: github.repository_owner != 'LadybirdBrowser'
+    name: Linux, x86_64, Release, GNU
+    secrets: inherit
+    uses: ./.github/workflows/build-and-test.yml
+    with:
+      toolchain: 'GNU'
+      os_name: 'Linux'
+      runner_labels: '["ubuntu-24.04"]'
+      arch: 'x86_64'
+      build_preset: 'Release'
+      container: '{"image":"ghcr.io/ladybirdbrowser/ladybird-ci:2026.11.21","options":"--ulimit core=1"}'
+
+  # The daily rebase job (fork-rebase.yml) pushes the rebased stack to the auto-rebase branch. A failure there means
+  # the patch stack no longer builds or passes its tests on top of upstream, so it is reported as an issue.
+  report-rebase-failure:
+    needs: [lint, build-and-test]
+    if: failure() && github.ref == 'refs/heads/auto-rebase' && github.repository_owner != 'LadybirdBrowser'
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Open or update the rebase failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          .github/scripts/fork-report-rebase-failure.sh \
+            "Build or tests fail after the daily rebase onto upstream" \
+            "The patch stack rebased cleanly onto upstream master (\`${GITHUB_SHA}\`), but the build or tests fail: ${RUN_URL}"
+
+  # When the rebased stack passes, it replaces master. The rebase job records which master it rebased in
+  # refs/fork/rebased-from, and the push is leased on that commit, so a master that moved in the meantime is left alone.
+  promote-rebase:
+    needs: [lint, build-and-test]
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/auto-rebase' && github.repository_owner != 'LadybirdBrowser'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.FORK_REBASE_TOKEN }}
+
+      - name: Move master to the rebased stack
+        run: |
+          git fetch --no-tags origin refs/fork/rebased-from:refs/fork/rebased-from
+          rebased_from=$(git rev-parse refs/fork/rebased-from)
+          if [[ "$(git rev-parse origin/master)" != "${rebased_from}" ]]; then
+            echo "::warning::master moved after the rebase started; leaving it for the next daily run"
+            exit 0
+          fi
+          git push --force-with-lease="refs/heads/master:${rebased_from}" origin "${GITHUB_SHA}:refs/heads/master"
+
+      - name: Report a failure to move master
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          .github/scripts/fork-report-rebase-failure.sh \
+            "Could not move master to the rebased stack" \
+            "The rebased stack (\`${GITHUB_SHA}\`) passed CI, but updating master failed: ${RUN_URL}"

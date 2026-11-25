@@ -65,3 +65,23 @@ TEST_CASE(directory_open_and_stat)
 
     TRY_OR_FAIL(FileSystem::remove(directory_path, FileSystem::RecursionMode::Allowed));
 }
+
+#ifndef AK_OS_WINDOWS
+TEST_CASE(recursive_remove_does_not_follow_directory_links)
+{
+    auto outside = TRY_OR_FAIL(create_temp_directory());
+    auto outside_path = outside.path().string();
+    auto kept_path = outside.path().append("kept.txt"sv).string();
+    (void)TRY_OR_FAIL(Core::File::open(kept_path, Core::File::OpenMode::Write));
+
+    auto removed_path = ByteString::formatted("{}-removed", outside_path);
+    TRY_OR_FAIL(Core::System::mkdir(removed_path, 0700));
+    TRY_OR_FAIL(Core::System::symlink(outside_path, ByteString::formatted("{}/link", removed_path)));
+
+    TRY_OR_FAIL(FileSystem::remove(removed_path, FileSystem::RecursionMode::Allowed));
+    EXPECT(!FileSystem::exists(removed_path));
+    EXPECT(FileSystem::exists(kept_path));
+
+    TRY_OR_FAIL(FileSystem::remove(outside_path, FileSystem::RecursionMode::Allowed));
+}
+#endif
