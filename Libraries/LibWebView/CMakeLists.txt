@@ -68,6 +68,7 @@ set(SOURCES
     TabPerformanceMonitor.cpp
     ProcessMonitor.cpp
     Profile.cpp
+    ProxySettings.cpp
     ReportSubmission.cpp
     RecordingNotificationBackend.cpp
     RequestServerManager.cpp
@@ -113,6 +114,7 @@ if (APPLE)
         MediaSessionPlatformBackendMacOS.mm
         NotificationBackendMacOS.mm
         ProcessReaper.cpp
+    ProxySettings.cpp
         QuarantineMacOS.mm
         StringConversionsMacOS.mm
     )
@@ -185,6 +187,11 @@ endif()
 
 target_link_libraries(LibWebView PUBLIC LibCompositing LibPlatformFeatures LibSandbox LibWebCommon)
 target_link_libraries(LibWebView PRIVATE LibCore LibCrypto LibDatabase LibDevTools LibFileSystem LibGfx LibHTTP LibImageDecoderClient LibIPC LibRequests LibMedia LibMediaClient LibUnicode LibURL LibTextCodec LibThreading)
+
+import_rust_crate(MANIFEST_PATH ProxySettings/Rust/Cargo.toml CRATE_NAME libwebview_proxy_settings_rust FEATURES allocator FFI_HEADER ProxySettingsRustFFI.h)
+target_link_libraries(LibWebView PRIVATE libwebview_proxy_settings_rust)
+get_target_property(_libwebview_proxy_settings_rust_lib libwebview_proxy_settings_rust IMPORTED_LOCATION)
+set_property(SOURCE ProxySettings.cpp APPEND PROPERTY OBJECT_DEPENDS ${_libwebview_proxy_settings_rust_lib})
 
 if (LINUX)
     # The connect broker asks the audio library where the daemon is before connecting a helper to it.

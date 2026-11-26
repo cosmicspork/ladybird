@@ -2202,6 +2202,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "libwebview_proxy_settings_rust"
+version = "0.1.0"
+dependencies = [
+ "ak",
+ "cbindgen",
+ "ladybird_allocator",
+ "rustc-demangle",
+]
+
+[[package]]
 name = "libxml_rust"
 version = "0.1.0"
 dependencies = [
