@@ -100,6 +100,12 @@ static HashMap<ByteString, ByteString> s_proxy_resolve_entries;
 
 void resolve_proxy_host(Optional<HTTP::Proxy> const& proxy, Function<void(ErrorOr<void>)> on_resolved)
 {
+    // Requests, WebSockets and certificate fetches all come through here before they connect to anything.
+    if (g_proxy_configuration.blocks_all_requests()) {
+        on_resolved(Error::from_string_literal("The proxy configuration blocks all requests"));
+        return;
+    }
+
     if (!proxy.has_value() || !proxy_is_given_by_name(*proxy)) {
         on_resolved({});
         return;
