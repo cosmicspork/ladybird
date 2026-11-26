@@ -5,9 +5,14 @@
  */
 
 #include <AK/HashMap.h>
+#include <AK/LexicalPath.h>
+#include <LibCore/StandardPaths.h>
+#include <LibCore/System.h>
+#include <LibFileSystem/FileSystem.h>
 #include <LibTest/TestCase.h>
 #include <LibURL/Parser.h>
 #include <LibWebView/ProxySettings.h>
+#include <LibWebView/Settings.h>
 
 using WebView::ProxySettings;
 using WebView::ProxySettingsForcedBy;
@@ -186,4 +191,116 @@ TEST_CASE(the_command_line_wins_over_saved_settings)
     EXPECT_EQ(resolved.forced_by, ProxySettingsForcedBy::CommandLine);
     EXPECT_EQ(resolved.configuration.proxy_for(url("https://example.com/"sv))->host, "secure.example"sv);
     EXPECT(!resolved.configuration.proxy_for(url("http://example.com/"sv)).has_value());
+}
+
+static ByteString fresh_settings_path(StringView name)
+{
+    auto path = LexicalPath::join(Core::StandardPaths::tempfile_directory(), ByteString::formatted("test-proxy-settings-{}-{}.json", name, Core::System::getpid())).string();
+    if (FileSystem::exists(path))
+        MUST(FileSystem::remove(path, FileSystem::RecursionMode::Disallowed));
+    return path;
+}
+
+TEST_CASE(proxy_settings_are_persistent)
+{
+    auto path = fresh_settings_path("persistent"sv);
+    auto proxy = manual_proxy("socks5h"sv, "127.0.0.1"sv, 9050, { "localhost"_string, ".internal.example"_string });
+
+    {
+        auto settings = WebView::Settings::create(path);
+        EXPECT_EQ(settings.proxy_settings(), ProxySettings {});
+        settings.set_proxy_settings(proxy);
+        EXPECT_EQ(settings.proxy_settings(), proxy);
+    }
+
+    {
+        auto settings = WebView::Settings::create(path);
+        EXPECT_EQ(settings.proxy_settings(), proxy);
+
+        ProxySettings none;
+        none.mode = ProxySettings::Mode::None;
+        settings.set_proxy_settings(none);
+    }
+
+    auto settings = WebView::Settings::create(path);
+    EXPECT_EQ(settings.proxy_settings().mode, ProxySettings::Mode::None);
+    MUST(FileSystem::remove(path, FileSystem::RecursionMode::Disallowed));
+}
+
+TEST_CASE(serialized_settings_report_an_unusable_proxy)
+{
+    auto settings = WebView::Settings::create(fresh_settings_path("serialized"sv));
+    auto serialized_proxy_settings = [&] {
+        auto json = settings.serialize_json();
+        return json.as_object().get_object("proxySettings"sv).release_value();
+    };
+
+    auto proxy_settings = serialized_proxy_settings();
+    EXPECT_EQ(proxy_settings.get_string("mode"sv).value(), "system"sv);
+    EXPECT(!proxy_settings.has("error"sv));
+    EXPECT(!proxy_settings.has("forcedBy"sv));
+
+    settings.set_proxy_settings(manual_proxy("socks5h"sv, "127.0.0.1"sv, 9050, { "localhost"_string }));
+    proxy_settings = serialized_proxy_settings();
+    EXPECT_EQ(proxy_settings.get_string("mode"sv).value(), "manual"sv);
+    EXPECT_EQ(proxy_settings.get_string("type"sv).value(), "socks5h"sv);
+    EXPECT_EQ(proxy_settings.get_string("host"sv).value(), "127.0.0.1"sv);
+    EXPECT_EQ(proxy_settings.get_i64("port"sv).value(), 9050);
+    EXPECT_EQ(proxy_settings.get_array("bypass"sv)->size(), 1u);
+    EXPECT(!proxy_settings.has("error"sv));
+
+    // The setting is kept as it was entered, and says what is wrong with it.
+    settings.set_proxy_settings(manual_proxy("socks5h"sv, "127.0.0.1:9050"sv, 70000));
+    proxy_settings = serialized_proxy_settings();
+    EXPECT_EQ(proxy_settings.get_string("host"sv).value(), "127.0.0.1:9050"sv);
+    EXPECT_EQ(proxy_settings.get_i64("port"sv).value(), 70000);
+    EXPECT(proxy_settings.get_string("error"sv).has_value());
+    EXPECT(!proxy_settings.has("forcedBy"sv));
+
+    // What the settings report about themselves is not read back in as a setting.
+    EXPECT_EQ(ProxySettings::from_json(proxy_settings), settings.proxy_settings());
+}
+
+TEST_CASE(proxy_settings_notify_only_when_they_change)
+{
+    auto path = fresh_settings_path("observer"sv);
+    auto settings = WebView::Settings::create(path);
+    struct Observer : WebView::SettingsObserver {
+        explicit Observer(WebView::Settings& settings)
+            : SettingsObserver(settings)
+        {
+        }
+        virtual void proxy_settings_changed() override { ++changes; }
+        size_t changes { 0 };
+    } observer(settings);
+
+    settings.set_proxy_settings({});
+    EXPECT_EQ(observer.changes, 0u);
+
+    auto proxy = manual_proxy("http"sv, "proxy.example"sv, 3128);
+    settings.set_proxy_settings(proxy);
+    EXPECT_EQ(observer.changes, 1u);
+    settings.set_proxy_settings(proxy);
+    EXPECT_EQ(observer.changes, 1u);
+
+    proxy.port = 3129;
+    settings.set_proxy_settings(proxy);
+    EXPECT_EQ(observer.changes, 2u);
+
+    // Settings that another process changed arrive as a whole.
+    auto json = settings.serialize_json();
+    settings.replace_with_json(json, WebView::Settings::PersistChange::No);
+    EXPECT_EQ(observer.changes, 2u);
+
+    json.as_object().get_object("proxySettings"sv)->set("mode"sv, "none"sv);
+    settings.replace_with_json(json, WebView::Settings::PersistChange::No);
+    EXPECT_EQ(observer.changes, 3u);
+    EXPECT_EQ(settings.proxy_settings().mode, ProxySettings::Mode::None);
+
+    json.as_object().remove("proxySettings"sv);
+    settings.replace_with_json(json, WebView::Settings::PersistChange::No);
+    EXPECT_EQ(observer.changes, 4u);
+    EXPECT_EQ(settings.proxy_settings(), ProxySettings {});
+
+    MUST(FileSystem::remove(path, FileSystem::RecursionMode::Disallowed));
 }

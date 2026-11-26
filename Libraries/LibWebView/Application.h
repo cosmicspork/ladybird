@@ -60,6 +60,7 @@
 #include <LibWebView/Process.h>
 #include <LibWebView/ProcessManager.h>
 #include <LibWebView/Profile.h>
+#include <LibWebView/ProxySettings.h>
 #include <LibWebView/Settings.h>
 #include <LibWebView/StorageJar.h>
 #include <LibWebView/WebDriverSessionConfig.h>
@@ -185,6 +186,10 @@ public:
     void appearance_changed(Badge<ApplicationSettingsObserver>);
     void tab_settings_changed(Badge<ApplicationSettingsObserver>);
     void languages_changed(Badge<ApplicationSettingsObserver>);
+    void proxy_settings_changed(Badge<ApplicationSettingsObserver>);
+
+    // Which proxy configuration these saved settings give, with what this browser's environment and command line say.
+    ResolvedProxySettings resolve_proxy_settings(ProxySettings const&) const;
 
     // The spoofing choices in effect: what every page and worker reports from its navigator.
     String user_agent_string() const;
@@ -641,6 +646,7 @@ private:
     Vector<int> m_session_signal_handlers;
     bool m_persists_sessions { false };
     RequestServerOptions m_request_server_options;
+    HTTP::ProxyConfiguration m_environment_proxy_configuration;
     WebContentOptions m_web_content_options;
     RefPtr<FontService> m_font_service;
     OwnPtr<FontServiceHost> m_font_service_host;

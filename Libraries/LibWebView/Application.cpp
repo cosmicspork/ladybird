@@ -153,6 +153,11 @@ struct ApplicationSettingsObserver final : public SettingsObserver {
         Application::request_server_manager().dns_settings_changed();
     }
 
+    virtual void proxy_settings_changed() override
+    {
+        Application::the().proxy_settings_changed({});
+    }
+
     virtual void background_networking_settings_changed() override
     {
         Application::the().background_networking_settings_changed({});
@@ -658,6 +663,7 @@ ErrorOr<void> Application::initialize(Main::Arguments const& arguments)
     };
 
     create_platform_options(m_browser_options, m_request_server_options, m_web_content_options);
+    m_environment_proxy_configuration = m_request_server_options.proxy_configuration;
     TRY(create_profile(profile_name, profile_path, temporary_profile));
 
     // Browsers launched by WebDriver are driven directly and must never join an existing browser process. A browser
@@ -695,6 +701,7 @@ ErrorOr<void> Application::initialize(Main::Arguments const& arguments)
     auto platform_languages = m_web_content_options.is_test_mode == IsTestMode::Yes ? Vector<String> {} : platform_preferred_languages();
 
     m_settings = make<Settings>(Settings::create(LexicalPath::join(profile().paths().config, "Settings.json"sv).string(), move(platform_languages)));
+    m_request_server_options.proxy_configuration = resolve_proxy_settings(m_settings->proxy_settings()).configuration;
     // A browser that crashed left a report that was recovered before the settings were read.
     if (m_settings->crash_report_sending() == CrashReportSending::NeverSend)
         CrashReportOutbox::the().discard_all();
@@ -3224,6 +3231,20 @@ void Application::appearance_changed(Badge<ApplicationSettingsObserver>)
 void Application::tab_settings_changed(Badge<ApplicationSettingsObserver>)
 {
     update_tabs_display();
+}
+
+ResolvedProxySettings Application::resolve_proxy_settings(ProxySettings const& proxy_settings) const
+{
+    return WebView::resolve_proxy_settings(proxy_settings, m_environment_proxy_configuration, m_web_content_options.proxy_autoconfig_url.has_value());
+}
+
+void Application::proxy_settings_changed(Badge<ApplicationSettingsObserver>)
+{
+    // NB: Whatever reads the proxy configuration from here on, such as the launch of a RequestServer or of a WebRTC
+    //     helper, has to see the new one.
+    m_request_server_options.proxy_configuration = resolve_proxy_settings(m_settings->proxy_settings()).configuration;
+    if (m_request_server_manager)
+        m_request_server_manager->proxy_configuration_changed();
 }
 
 void Application::background_networking_settings_changed(Badge<ApplicationSettingsObserver>)
