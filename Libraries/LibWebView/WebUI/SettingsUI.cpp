@@ -224,6 +224,9 @@ void SettingsUI::register_interfaces()
     register_interface("setDNSSettings"sv, [this](auto const& data) {
         set_dns_settings(data);
     });
+    register_interface("setProxySettings"sv, [this](auto const& data) {
+        set_proxy_settings(data);
+    });
 }
 
 void SettingsUI::load_features()
@@ -894,6 +897,11 @@ void SettingsUI::report_content_blocker_result(String operation, String message)
 void SettingsUI::set_dns_settings(JsonValue const& dns_settings)
 {
     Application::settings().set_dns_settings(Settings::parse_dns_settings(dns_settings));
+}
+
+void SettingsUI::set_proxy_settings(JsonValue const& proxy_settings)
+{
+    Application::settings().set_proxy_settings(ProxySettings::from_json(proxy_settings));
 }
 
 }

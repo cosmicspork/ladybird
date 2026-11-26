@@ -58,6 +58,7 @@ private:
     virtual void crash_report_sending_changed() override { broadcast_settings_change(); }
     virtual void crash_reports_changed() override;
     virtual void dns_settings_changed() override { broadcast_settings_change(); }
+    virtual void proxy_settings_changed() override { broadcast_settings_change(); }
     virtual void config_variable_changed(ConfigVariableID) override { broadcast_settings_change(); }
     virtual void permission_settings_changed(Web::Permissions::PermissionName) override { broadcast_settings_change(); }
     virtual void background_networking_settings_changed() override { broadcast_settings_change(); }
@@ -116,6 +117,7 @@ private:
     void report_content_blocker_result(String operation, String message);
 
     void set_dns_settings(JsonValue const&);
+    void set_proxy_settings(JsonValue const&);
 
     Optional<JsonObject> m_current_settings;
     bool m_settings_change_scheduled { false };

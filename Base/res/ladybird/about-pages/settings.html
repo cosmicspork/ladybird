@@ -1525,6 +1525,63 @@
             </div>
 
             <div class="tab-panel" id="tab-advanced" data-title="Advanced">
+                <h3 class="card-title">Proxy</h3>
+                <div class="card">
+                    <div class="card-body">
+                        <span id="proxy-forcibly-enabled" class="forcibly-enabled hidden"></span>
+                        <p id="proxy-error" class="description hidden" role="alert"></p>
+
+                        <div class="card-group inline-container control-row">
+                            <label for="proxy-mode">Proxy</label>
+                            <select id="proxy-mode">
+                                <option value="system">System (proxy environment variables)</option>
+                                <option value="none">No proxy</option>
+                                <option value="manual">Manual proxy</option>
+                            </select>
+                        </div>
+                        <div id="manual-proxy-settings" class="hidden">
+                            <div class="card-group inline-container control-row">
+                                <label for="proxy-type">Type</label>
+                                <select id="proxy-type">
+                                    <option value="http">HTTP</option>
+                                    <option value="https">HTTPS</option>
+                                    <option value="socks4">SOCKS4</option>
+                                    <option value="socks4a">SOCKS4a</option>
+                                    <option value="socks5">SOCKS5</option>
+                                </select>
+                            </div>
+                            <div class="card-group inline-container control-row" id="proxy-remote-dns-container">
+                                <label for="proxy-remote-dns">Resolve host names through the proxy</label>
+                                <input id="proxy-remote-dns" type="checkbox" switch />
+                            </div>
+                            <div class="card-group inline-container control-row">
+                                <label for="proxy-host">Proxy server (IP or hostname)</label>
+                                <input id="proxy-host" type="text" spellcheck="false" />
+                            </div>
+                            <div class="card-group inline-container control-row">
+                                <label for="proxy-port">Port</label>
+                                <input id="proxy-port" type="text" spellcheck="false" />
+                            </div>
+                            <div class="card-group">
+                                <label for="proxy-bypass">
+                                    Connect directly to these hosts, addresses and address ranges
+                                </label>
+                                <textarea
+                                    id="proxy-bypass"
+                                    rows="3"
+                                    spellcheck="false"
+                                    placeholder="localhost, 127.0.0.1, 10.0.0.0/8, .internal.example"
+                                ></textarea>
+                            </div>
+                            <p class="description">
+                                If the proxy cannot be reached, pages fail to load rather than connect without it. A
+                                change applies to new connections: connections that are already open keep their route
+                                until they close.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
                 <h3 class="card-title">DNS</h3>
                 <div class="card">
                     <div class="card-body">
@@ -1780,6 +1837,7 @@
         <script src="resource://ladybird/about-pages/settings/network.js" type="module"></script>
         <script src="resource://ladybird/about-pages/settings/permissions.js" type="module"></script>
         <script src="resource://ladybird/about-pages/settings/privacy.js" type="module"></script>
+        <script src="resource://ladybird/about-pages/settings/proxy.js" type="module"></script>
         <script src="resource://ladybird/about-pages/settings/search.js" type="module"></script>
         <script src="resource://ladybird/about-pages/settings/services.js" type="module"></script>
         <script src="resource://ladybird/about-pages/settings/startup.js" type="module"></script>
