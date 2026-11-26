@@ -7,7 +7,10 @@
 #include <LibTest/TestCase.h>
 
 #include <AK/HashMap.h>
+#include <AK/MemoryStream.h>
 #include <LibHTTP/Proxy.h>
+#include <LibIPC/Decoder.h>
+#include <LibIPC/Encoder.h>
 #include <LibURL/Parser.h>
 
 static HTTP::ProxyConfiguration configuration_from(HashMap<StringView, StringView> const& environment)
@@ -18,6 +21,17 @@ static HTTP::ProxyConfiguration configuration_from(HashMap<StringView, StringVie
 static URL::URL url(StringView string)
 {
     return URL::Parser::basic_parse(string).release_value();
+}
+
+static HTTP::ProxyConfiguration round_trip(HTTP::ProxyConfiguration const& configuration)
+{
+    IPC::MessageBuffer message;
+    IPC::Encoder encoder { message };
+    MUST(encoder.encode(configuration));
+    Queue<IPC::Attachment> attachments;
+    FixedMemoryStream stream { message.data().span() };
+    IPC::Decoder decoder { stream, attachments };
+    return MUST(decoder.decode<HTTP::ProxyConfiguration>());
 }
 
 TEST_CASE(parse_proxy)
@@ -120,4 +134,38 @@ TEST_CASE(no_proxy_matching)
 
     configuration = configuration_from({ { "all_proxy"sv, "http://proxy"sv }, { "NO_PROXY"sv, "*"sv } });
     EXPECT(!is_proxied("https://example.com/"sv));
+}
+
+TEST_CASE(configuration_that_blocks_all_requests)
+{
+    EXPECT(!HTTP::ProxyConfiguration {}.blocks_all_requests());
+    EXPECT(HTTP::ProxyConfiguration {}.is_empty());
+    EXPECT(!configuration_from({ { "all_proxy"sv, "http://proxy"sv } }).blocks_all_requests());
+
+    // It names no proxy, but it must not be mistaken for a configuration that lets requests connect directly.
+    auto configuration = HTTP::ProxyConfiguration::blocking_all_requests();
+    EXPECT(configuration.blocks_all_requests());
+    EXPECT(!configuration.is_empty());
+    EXPECT(!configuration.proxy_for(url("https://example.com/"sv)).has_value());
+}
+
+TEST_CASE(configuration_survives_ipc)
+{
+    auto blocking = round_trip(HTTP::ProxyConfiguration::blocking_all_requests());
+    EXPECT(blocking.blocks_all_requests());
+    EXPECT(!blocking.is_empty());
+
+    auto empty = round_trip({});
+    EXPECT(!empty.blocks_all_requests());
+    EXPECT(empty.is_empty());
+
+    auto configuration = round_trip(configuration_from({
+        { "http_proxy"sv, "socks5h://[::1]:9050"sv },
+        { "https_proxy"sv, "http://proxy:3128"sv },
+        { "no_proxy"sv, "localhost,10.0.0.0/8"sv },
+    }));
+    EXPECT(!configuration.blocks_all_requests());
+    EXPECT_EQ(configuration.http_proxy()->to_curl_url(), "socks5h://[::1]:9050"sv);
+    EXPECT_EQ(configuration.https_proxy()->to_curl_url(), "http://proxy:3128"sv);
+    EXPECT_EQ(configuration.no_proxy(), (Vector<ByteString> { "localhost"sv, "10.0.0.0/8"sv }));
 }

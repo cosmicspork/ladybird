@@ -37,7 +37,11 @@ public:
     {
         m_opened_tabs.append(WebView::HeadlessWebView::create(load_theme(), { 800, 600 }));
         auto& tab = m_opened_tabs.last();
-        tab->on_load_finish = [this](auto const&) { ++m_opened_tab_loads; };
+        tab->on_load_finish = [this](auto const& url) {
+            ++m_opened_tab_loads;
+            if (url.equals(URL::about_srcdoc(), URL::ExcludeFragment::Yes))
+                m_source_page_has_loaded = true;
+        };
         m_active_view = tab.ptr();
         return *tab;
     }
@@ -57,11 +61,13 @@ public:
     size_t opened_tab_count() const { return m_opened_tabs.size(); }
     WebView::HeadlessWebView& opened_tab(size_t index) { return *m_opened_tabs[index]; }
     size_t opened_tab_loads() const { return m_opened_tab_loads; }
+    bool source_page_has_loaded() const { return m_source_page_has_loaded; }
 
 private:
     mutable Vector<NonnullOwnPtr<WebView::HeadlessWebView>> m_opened_tabs;
     mutable WebView::ViewImplementation* m_active_view { nullptr };
     mutable size_t m_opened_tab_loads { 0 };
+    mutable bool m_source_page_has_loaded { false };
 };
 
 }
@@ -99,6 +105,10 @@ TEST_CASE(view_source_of_source_page)
 
     source_tab.get_source();
     VERIFY(app->opened_tab_count() == 1);
+
+    // The tab shows the source page's URL as soon as the browser commits the navigation, which is before WebContent has
+    // finished setting up the document. Script that navigates is only run in a document that has loaded.
+    Core::EventLoop::current().spin_until([&]() { return app->source_page_has_loaded(); });
 
     // A fragment navigation keeps the source page's document, so the restriction stays.
     source_tab.run_javascript("location.hash = 'fragment'"_string);

@@ -67,3 +67,27 @@ TEST_CASE(proxy_given_by_name_is_pinned_to_the_addresses_found)
     // A pin is for the host and port the proxy was looked up with, and no other.
     EXPECT(!RequestServer::curl_resolve_entry_for_proxy(proxy_at("localhost"sv, 8080)).has_value());
 }
+
+TEST_CASE(nothing_resolves_while_the_configuration_blocks_all_requests)
+{
+    Core::EventLoop loop;
+    RequestServer::set_proxy_configuration(HTTP::ProxyConfiguration::blocking_all_requests());
+
+    // Every request asks here before it connects, whether or not it would use a proxy.
+    for (auto const& proxy : { Optional<HTTP::Proxy> {}, Optional<HTTP::Proxy> { proxy_at("192.0.2.1"sv, 3128) }, Optional<HTTP::Proxy> { proxy_at("localhost"sv, 3128) } }) {
+        bool called_back = false;
+        RequestServer::resolve_proxy_host(proxy, [&](ErrorOr<void> result) {
+            EXPECT(result.is_error());
+            called_back = true;
+        });
+        EXPECT(called_back);
+    }
+
+    RequestServer::set_proxy_configuration({});
+    bool called_back = false;
+    RequestServer::resolve_proxy_host({}, [&](ErrorOr<void> result) {
+        EXPECT(!result.is_error());
+        called_back = true;
+    });
+    EXPECT(called_back);
+}

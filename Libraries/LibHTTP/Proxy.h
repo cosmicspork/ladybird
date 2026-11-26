@@ -56,9 +56,14 @@ public:
     {
     }
 
+    // A configuration under which no request may reach the network, for a proxy setting that cannot be used. Treating
+    // it as no proxy would send requests directly that were meant to go through a proxy.
+    static ProxyConfiguration blocking_all_requests();
+    bool blocks_all_requests() const { return m_blocks_all_requests; }
+
     Optional<Proxy const&> proxy_for(URL::URL const&) const;
 
-    bool is_empty() const { return !m_http_proxy.has_value() && !m_https_proxy.has_value(); }
+    bool is_empty() const { return !m_blocks_all_requests && !m_http_proxy.has_value() && !m_https_proxy.has_value(); }
 
     Optional<Proxy> const& http_proxy() const { return m_http_proxy; }
     Optional<Proxy> const& https_proxy() const { return m_https_proxy; }
@@ -70,6 +75,7 @@ private:
     Optional<Proxy> m_http_proxy;
     Optional<Proxy> m_https_proxy;
     Vector<ByteString> m_no_proxy;
+    bool m_blocks_all_requests { false };
 };
 
 }

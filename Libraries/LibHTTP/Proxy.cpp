@@ -183,6 +183,13 @@ ProxyConfiguration ProxyConfiguration::from_environment(EnvironmentLookup const&
     };
 }
 
+ProxyConfiguration ProxyConfiguration::blocking_all_requests()
+{
+    ProxyConfiguration configuration;
+    configuration.m_blocks_all_requests = true;
+    return configuration;
+}
+
 Optional<Proxy const&> ProxyConfiguration::proxy_for(URL::URL const& url) const
 {
     Optional<Proxy> const* proxy = nullptr;
@@ -324,6 +331,7 @@ ErrorOr<void> encode(Encoder& encoder, HTTP::ProxyConfiguration const& configura
     TRY(encoder.encode(configuration.http_proxy()));
     TRY(encoder.encode(configuration.https_proxy()));
     TRY(encoder.encode(configuration.no_proxy()));
+    TRY(encoder.encode(configuration.blocks_all_requests()));
     return {};
 }
 
@@ -333,6 +341,8 @@ ErrorOr<HTTP::ProxyConfiguration> decode(Decoder& decoder)
     auto http_proxy = TRY(decoder.decode<Optional<HTTP::Proxy>>());
     auto https_proxy = TRY(decoder.decode<Optional<HTTP::Proxy>>());
     auto no_proxy = TRY(decoder.decode<Vector<ByteString>>());
+    if (TRY(decoder.decode<bool>()))
+        return HTTP::ProxyConfiguration::blocking_all_requests();
     return HTTP::ProxyConfiguration { move(http_proxy), move(https_proxy), move(no_proxy) };
 }
 

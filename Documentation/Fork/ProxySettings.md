@@ -1,6 +1,6 @@
 # Proxy settings and fail-closed proxying
 
-Status: design, awaiting review. Tracked in the fork's issue #3.
+Status: partly implemented, see [Implementation status](#implementation-status). Tracked in the fork's issue #3.
 
 ## Problem
 
@@ -66,8 +66,11 @@ keeps that rule and does not add a failover option.
 | Mode | Meaning |
 |------|---------|
 | `system` | Today's behavior: the environment variables decide. This is the default. |
-| `none` | No proxy, even if the environment names one. |
+| `none` | No proxy from the saved settings. |
 | `manual` | One proxy for HTTP, HTTPS and WebSocket traffic, plus a bypass list. |
+
+`none` does not override the environment (see Precedence), so today it behaves like `system`. It is kept as a mode of
+its own so that it keeps its meaning once `system` also reads the desktop's proxy settings.
 
 PAC is left out of the UI. Upstream cannot evaluate PAC files, so a PAC mode would only make every request fail. It can
 be added once upstream evaluates PAC, and `--proxy-autoconfig-url` keeps working as it does today.
@@ -75,9 +78,9 @@ be added once upstream evaluates PAC, and `--proxy-autoconfig-url` keeps working
 ### Precedence
 
 As with DNS settings, the command line and environment win over saved settings, and the UI shows the section as forced
-and read-only when they apply. In `system` mode the environment is the configuration, so nothing is forced.
-"Environment variables win" applies to the `manual` and `none` modes too, so that a launcher which sets `all_proxy`
-cannot be silently overridden by a stale saved setting.
+and read-only when they apply. "Environment variables win" applies to every mode, so that a launcher which sets
+`all_proxy` cannot be silently overridden by a stale saved setting. `--proxy-autoconfig-url` wins in the same way: with
+it, the saved proxy is not used.
 
 ### Settings schema
 
@@ -99,8 +102,19 @@ Stored in `Settings.json` next to `dnsSettings`:
   checkbox shown for SOCKS5.
 - `bypass` uses the `no_proxy` syntax so that `proxy_for()` applies it unchanged.
 - Credentials are not stored in this version (see open questions).
-- A missing or unparseable object means `system`. A `manual` object that fails validation is kept, reported in the UI,
-  and turned into a configuration that fails every request.
+- A missing or unparseable object means `system`, and so does a `mode` that is not one of the three. A `manual` object
+  that fails validation is kept as written, reported in the UI, and turned into a configuration that fails every
+  request.
+- When the settings are serialized for the settings page, the object also carries `forcedBy` (`environment` or
+  `commandLine`) and `error` (what is wrong with the proxy). Both are derived, and are ignored when read back.
+
+### Blocking every request
+
+`HTTP::ProxyConfiguration` has a state that names no proxy and still is not empty:
+`ProxyConfiguration::blocking_all_requests()`. RequestServer refuses it in `resolve_proxy_host()`, which page
+requests, WebSocket connections and AIA certificate fetches all call before they connect, so there is one place to get
+right rather than three. Because the configuration is not empty, `resolve_host` answers nothing and WebRTC helpers are
+launched without network access, as with any proxy.
 
 ### Process and IPC flow
 
@@ -135,11 +149,11 @@ proxy server refused the connection" with the proxy's address, and links to the 
 The plan for this fork puts decision logic in Rust, and also says not to rewrite upstream C++. For this feature those
 two rules pull in different directions, because the parsing and matching that exist are already C++:
 
-- **Rust, new crate `Libraries/LibWebView/ProxySettings/Rust`:** validation of the `proxySettings` JSON (type, host,
-  port range, bypass entries), the precedence rule (flags, environment, saved settings), and the fail-closed decision
-  that turns an invalid manual configuration into "fail every request". It exposes one function over cbindgen that
-  takes the saved JSON and the environment and returns either a configuration or a validation error. This is the only
-  new code that handles user input.
+- **Rust, new crate `Libraries/LibWebView/ProxySettings/Rust`:** validation of the saved proxy (type, host, port
+  range, bypass entries), the precedence rule (flags, environment, saved settings), and the fail-closed decision that
+  turns an invalid manual configuration into "fail every request". It exposes one function over cbindgen that takes
+  the saved fields and whether the environment or the command line names a proxy, and returns the decision. This is
+  the only new code that interprets user input: the C++ side reads the fields out of the JSON without judging them.
 - **C++, unchanged:** `Proxy::parse()`, `ProxyConfiguration::from_environment()` and `proxy_for()`. Duplicating the
   bypass matcher in Rust would add a second implementation to keep in sync.
 - **C++ glue:** `Settings.{h,cpp}` persistence and observer, the `Application` hook that pushes the configuration,
@@ -195,6 +209,32 @@ Each commit leaves the default (`system`) behavior identical to upstream.
   assert that the proxy saw the request and the origin saw only the proxy. Then change the setting through
   `about:settings` and repeat. A second case sets `all_proxy` and checks that the UI shows the section as forced.
 - **WebRTC**: a LibWebView test that the helper's arguments include `--disable-network` after a runtime change.
+
+## Implementation status
+
+Landed in the first pull request for #3:
+
+- the Rust crate, with the validation, the precedence rule and the fail-closed decision
+- the configuration that blocks every request, and its enforcement in RequestServer
+- `proxySettings` in `Settings.json`, and the effective configuration reaching every RequestServer at launch and when
+  the setting changes
+- the Proxy section of `about:settings`, including the forced and error states
+- tests: the crate's unit tests, `Tests/LibWebView/TestProxySettings.cpp`, and additions to
+  `Tests/LibHTTP/TestProxy.cpp` and `Tests/RequestServer/TestProxyHostResolution.cpp`
+
+Still to do, and the reason the series is not complete:
+
+- **Connections that predate a change.** A new configuration applies to requests that start after it. Requests in
+  flight, open WebSockets and WebRTC helpers that are already running keep the route they were made with (commits 3
+  and 4 of the series below). The settings page says so.
+- **Error page.** A refused proxy connection is still reported as "Unable to connect", and a blocked request as
+  "Unable to resolve proxy" (commit 5).
+- **Tests with a live proxy.** The in-process proxy and origin servers of `TestProxyFailClosed.cpp`, and the WebDriver
+  end-to-end test.
+
+An environment variable that is set but cannot be parsed, such as `all_proxy=bogus`, is still ignored by
+`ProxyConfiguration::from_environment()`, as upstream does. That is a direct connection where a proxy was asked for,
+and is worth closing in the same way as for saved settings.
 
 ## Open questions
 

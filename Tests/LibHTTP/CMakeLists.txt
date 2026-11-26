@@ -13,4 +13,4 @@ set(TEST_SOURCES
 )
 
 target_sources(TestLibHTTP PRIVATE ${TEST_SOURCES})
-target_link_libraries(TestLibHTTP PRIVATE LibDatabase LibHTTP LibURL)
+target_link_libraries(TestLibHTTP PRIVATE LibDatabase LibHTTP LibIPC LibURL)

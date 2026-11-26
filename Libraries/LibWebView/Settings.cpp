@@ -106,6 +106,7 @@ static constexpr auto CONTENT_BLOCKER_NAME_KEY = "name"sv;
 static constexpr auto CONTENT_BLOCKER_ENABLED_KEY = "enabled"sv;
 
 static constexpr auto DNS_SETTINGS_KEY = "dnsSettings"sv;
+static constexpr auto PROXY_SETTINGS_KEY = "proxySettings"sv;
 
 static constexpr auto CONFIG_VARIABLES_KEY = "configVariables"sv;
 
@@ -604,6 +605,9 @@ void Settings::load_from_json(JsonValue const& json_value)
     if (auto dns_settings = json.get(DNS_SETTINGS_KEY); dns_settings.has_value())
         m_dns_settings = parse_dns_settings(*dns_settings);
 
+    if (auto proxy_settings = json.get(PROXY_SETTINGS_KEY); proxy_settings.has_value())
+        m_proxy_settings = ProxySettings::from_json(*proxy_settings);
+
     if (auto config_variables = json.get_object(CONFIG_VARIABLES_KEY); config_variables.has_value()) {
         for (auto const& variable : config_variable_definitions()) {
             if (auto value = config_variables->get(variable.name); value.has_value()) {
@@ -654,6 +658,7 @@ void Settings::replace_with_json(JsonValue const& json, PersistChange persist_ch
     auto global_privacy_control_changed = changed(GLOBAL_PRIVACY_CONTROL_KEY);
     auto crash_report_sending_changed = changed(CRASH_REPORT_SENDING_KEY);
     auto dns_settings_changed = changed(DNS_SETTINGS_KEY);
+    auto proxy_settings_changed = changed(PROXY_SETTINGS_KEY);
     auto background_networking_settings_changed = changed(BACKGROUND_NETWORKING_KEY);
     auto content_blocker_settings_changed = changed(CONTENT_BLOCKERS_KEY);
 
@@ -690,6 +695,8 @@ void Settings::replace_with_json(JsonValue const& json, PersistChange persist_ch
             observer.crash_report_sending_changed();
         if (dns_settings_changed)
             observer.dns_settings_changed();
+        if (proxy_settings_changed)
+            observer.proxy_settings_changed();
         if (background_networking_settings_changed)
             observer.background_networking_settings_changed();
         if (content_blocker_settings_changed)
@@ -1028,6 +1035,19 @@ JsonValue Settings::serialize_json() const
     }
 
     settings.set(DNS_SETTINGS_KEY, move(dns_settings));
+
+    // proxySettings :: ProxySettings & { forcedBy?: "environment" | "commandLine", error?: string }
+    auto proxy_settings = m_proxy_settings.to_json();
+    auto resolved_proxy_settings = Application::is_initialized()
+        ? Application::the().resolve_proxy_settings(m_proxy_settings)
+        : resolve_proxy_settings(m_proxy_settings, {}, false);
+    if (resolved_proxy_settings.forced_by == ProxySettingsForcedBy::Environment)
+        proxy_settings.set("forcedBy"sv, "environment"sv);
+    else if (resolved_proxy_settings.forced_by == ProxySettingsForcedBy::CommandLine)
+        proxy_settings.set("forcedBy"sv, "commandLine"sv);
+    if (resolved_proxy_settings.error.has_value())
+        proxy_settings.set("error"sv, resolved_proxy_settings.error.release_value());
+    settings.set(PROXY_SETTINGS_KEY, move(proxy_settings));
 
     JsonObject config_variables;
     for (auto const& variable : config_variable_definitions())
@@ -1703,6 +1723,18 @@ void Settings::set_dns_settings(DNSSettings const& dns_settings, bool override_b
 
     for (auto& observer : m_observers)
         observer.dns_settings_changed();
+}
+
+void Settings::set_proxy_settings(ProxySettings proxy_settings)
+{
+    if (m_proxy_settings == proxy_settings)
+        return;
+
+    m_proxy_settings = move(proxy_settings);
+    persist_settings();
+
+    for (auto& observer : m_observers)
+        observer.proxy_settings_changed();
 }
 
 JsonValue const& Settings::config_variable(ConfigVariableID id) const

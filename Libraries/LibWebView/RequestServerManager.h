@@ -103,6 +103,7 @@ public:
 
     void disk_cache_settings_changed();
     void dns_settings_changed();
+    void proxy_configuration_changed();
 
     NonnullRefPtr<Core::Promise<Requests::CacheSizes>> estimate_cache_size_accessed_since(UnixDateTime since);
     NonnullRefPtr<Core::Promise<Empty>> clear_cache(UnixDateTime since);

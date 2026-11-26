@@ -345,6 +345,13 @@ void RequestServerManager::dns_settings_changed()
         apply_dns_settings(instance->control_client());
 }
 
+void RequestServerManager::proxy_configuration_changed()
+{
+    auto const& proxy_configuration = Application::request_server_options().proxy_configuration;
+    for (auto& instance : m_instances)
+        instance->control_client().async_set_proxy_configuration(proxy_configuration);
+}
+
 ByteString RequestServerManager::sites_directory() const
 {
     return LexicalPath::join(Application::request_server_options().cache_path, "RequestServer"sv, "Sites"sv).string();

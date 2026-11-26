@@ -22,6 +22,7 @@
 #include <LibWebCommon/WebView/BrowsingBehavior.h>
 #include <LibWebView/Forward.h>
 #include <LibWebView/Options.h>
+#include <LibWebView/ProxySettings.h>
 #include <LibWebView/SearchEngine.h>
 
 namespace WebView {
@@ -207,6 +208,7 @@ public:
     virtual void global_privacy_control_changed() { }
     virtual void crash_report_sending_changed() { }
     virtual void dns_settings_changed() { }
+    virtual void proxy_settings_changed() { }
     virtual void config_variable_changed(ConfigVariableID) { }
     virtual void background_networking_settings_changed() { }
     virtual void content_blocker_settings_changed() { }
@@ -251,6 +253,7 @@ struct WEBVIEW_API SettingsData {
     String m_custom_content_blocker_filters;
 
     DNSSettings m_dns_settings { SystemDNS() };
+    ProxySettings m_proxy_settings;
 
     Array<JsonValue, static_cast<size_t>(ConfigVariableID::Count)> m_config_variables {};
 };
@@ -383,6 +386,9 @@ public:
     static DNSSettings parse_dns_settings(JsonValue const&);
     DNSSettings const& dns_settings() const { return m_dns_settings; }
     void set_dns_settings(DNSSettings const&, bool override_by_command_line = false);
+
+    ProxySettings const& proxy_settings() const { return m_proxy_settings; }
+    void set_proxy_settings(ProxySettings);
 
     JsonValue const& config_variable(ConfigVariableID) const;
     bool config_variable_as_bool(ConfigVariableID) const;
