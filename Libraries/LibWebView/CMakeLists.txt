@@ -114,7 +114,6 @@ if (APPLE)
         MediaSessionPlatformBackendMacOS.mm
         NotificationBackendMacOS.mm
         ProcessReaper.cpp
-    ProxySettings.cpp
         QuarantineMacOS.mm
         StringConversionsMacOS.mm
     )
@@ -192,6 +191,13 @@ import_rust_crate(MANIFEST_PATH ProxySettings/Rust/Cargo.toml CRATE_NAME libwebv
 target_link_libraries(LibWebView PRIVATE libwebview_proxy_settings_rust)
 get_target_property(_libwebview_proxy_settings_rust_lib libwebview_proxy_settings_rust IMPORTED_LOCATION)
 set_property(SOURCE ProxySettings.cpp APPEND PROPERTY OBJECT_DEPENDS ${_libwebview_proxy_settings_rust_lib})
+test_rust_crate(MANIFEST_PATH ProxySettings/Rust/Cargo.toml CRATE_NAME libwebview_proxy_settings_rust)
+if ((LINUX OR BSD) AND BUILD_SHARED_LIBS)
+    # The crate is an implementation detail of this library. Keep its symbols, including its copy of the Rust standard
+    # library, out of the dynamic symbol table: an executable that links this library ahead of a Rust archive of its
+    # own would otherwise bind that archive to this copy, and its panics would go around its own panic hook.
+    target_link_options(LibWebView PRIVATE LINKER:--exclude-libs=liblibwebview_proxy_settings_rust.a)
+endif()
 
 if (LINUX)
     # The connect broker asks the audio library where the daemon is before connecting a helper to it.
