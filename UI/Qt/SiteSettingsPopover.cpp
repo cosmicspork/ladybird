@@ -81,6 +81,19 @@ static QString autoplay_policy_name(Web::HTML::AutoplayPolicy policy)
     VERIFY_NOT_REACHED();
 }
 
+static QString scripting_policy_name(Web::HTML::ScriptingPolicy policy)
+{
+    switch (policy) {
+    case Web::HTML::ScriptingPolicy::Allow:
+        return QStringLiteral("Allow");
+    case Web::HTML::ScriptingPolicy::BlockThirdParty:
+        return QStringLiteral("Block from other sites");
+    case Web::HTML::ScriptingPolicy::Block:
+        return QStringLiteral("Block");
+    }
+    VERIFY_NOT_REACHED();
+}
+
 static QString permission_label(Web::Permissions::PermissionName name)
 {
     switch (name) {
@@ -183,6 +196,56 @@ SiteSettingsPopover::SiteSettingsPopover(QWidget* parent, WebView::Settings& set
     permission_rows_layout->setContentsMargins(0, 0, 0, 0);
     permission_rows_layout->setSpacing(0);
     layout->addWidget(m_permission_rows);
+
+    // Whether the site may run scripts. A private window runs scripts by the saved choices without changing them.
+    auto* scripting_row = new QHBoxLayout;
+    scripting_row->setContentsMargins(10, 0, 10, 0);
+    scripting_row->setSpacing(10);
+    m_scripting_icon = create_icon(*m_site_page);
+    scripting_row->addWidget(m_scripting_icon);
+    auto* scripting_label = new QLabel("JavaScript", m_site_page);
+    scripting_label->setFixedHeight(ROW_HEIGHT);
+    scripting_row->addWidget(scripting_label, 1);
+    m_scripting_button = create_value_button(*m_site_page);
+    m_scripting_button->setAccessibleName("JavaScript on this site");
+    QObject::connect(m_scripting_button, &QPushButton::clicked, this, [this] {
+        if (m_is_private || !m_scripting_site.has_value())
+            return;
+
+        // NB: The menu runs a nested event loop, during which the popover may be shown for another site.
+        auto site = *m_scripting_site;
+        auto host = m_scripting_host;
+        auto const& scripting = m_settings.scripting_settings();
+        auto site_policy = scripting.site_filters.get(site);
+        QMenu menu(this);
+
+        for (auto policy : { Web::HTML::ScriptingPolicy::Allow, Web::HTML::ScriptingPolicy::BlockThirdParty, Web::HTML::ScriptingPolicy::Block }) {
+            auto* action = menu.addAction(scripting_policy_name(policy));
+            action->setData(static_cast<int>(policy));
+            action->setCheckable(true);
+            action->setChecked(site_policy == policy);
+        }
+
+        auto* use_default = menu.addAction(qformatted("Default ({})", scripting_policy_name(scripting.policy)));
+        use_default->setCheckable(true);
+        use_default->setChecked(!site_policy.has_value());
+
+        auto* chosen = menu.exec(m_scripting_button->mapToGlobal(QPoint(0, m_scripting_button->height())));
+        if (!chosen)
+            return;
+
+        auto previous_policy = m_settings.scripting_policy_for_host(host);
+        if (chosen == use_default)
+            m_settings.remove_scripting_site_filter(site);
+        else
+            (void)m_settings.add_scripting_site_filter(site, static_cast<Web::HTML::ScriptingPolicy>(chosen->data().toInt()));
+
+        update_scripting();
+        if (m_settings.scripting_policy_for_host(host) != previous_policy && on_scripting_policy_change)
+            on_scripting_policy_change();
+    });
+    scripting_row->addWidget(m_scripting_button);
+    layout->addLayout(scripting_row);
 
     // Whether media may play on its own.
     auto* autoplay_row = new QHBoxLayout;
@@ -293,7 +356,14 @@ SiteSettingsPopover::SiteSettingsPopover(QWidget* parent, WebView::Settings& set
         m_settings.remove_autoplay_site_filter(m_origin);
         if (!m_is_private)
             m_settings.reset_host_setting(WebView::HostSetting::ForceDark, m_host);
+        if (has_scripting_choice()) {
+            auto previous_policy = m_settings.scripting_policy_for_host(m_scripting_host);
+            m_settings.remove_scripting_site_filter(*m_scripting_site);
+            if (m_settings.scripting_policy_for_host(m_scripting_host) != previous_policy && on_scripting_policy_change)
+                on_scripting_policy_change();
+        }
         update_autoplay();
+        update_scripting();
         if (on_reset_permissions)
             on_reset_permissions();
     });
@@ -417,6 +487,8 @@ void SiteSettingsPopover::set_site(Site site)
     m_origin = site.origin.serialize();
     m_host = AK::move(site.host_for_settings);
     m_is_private = site.is_private;
+    m_scripting_site = Web::HTML::scripting_site_for_origin(site.origin);
+    m_scripting_host = site.origin.is_opaque() ? String {} : site.origin.host().serialize();
     content_settings_changed();
     m_host_label->setText(qstring_from_ak_string(site.origin.host().serialize()));
     // A secure connection is the norm, so only an insecure one is mentioned.
@@ -427,6 +499,7 @@ void SiteSettingsPopover::set_site(Site site)
 
     set_permissions(site.permissions);
     update_autoplay();
+    update_scripting();
     m_no_site_page->hide();
     show_blocked_resources(false);
     set_content_blocking(site.content_blocking);
@@ -592,6 +665,19 @@ void SiteSettingsPopover::update_autoplay()
     update_reset_link();
 }
 
+void SiteSettingsPopover::update_scripting()
+{
+    m_scripting_button->setText(scripting_policy_name(m_settings.scripting_policy_for_host(m_scripting_host)));
+    m_scripting_button->setIcon(create_chrome_icon(ChromeIcon::ChevronDown, Theme::panel().muted));
+    m_scripting_button->setEnabled(!m_is_private && m_scripting_site.has_value());
+    update_reset_link();
+}
+
+bool SiteSettingsPopover::has_scripting_choice() const
+{
+    return !m_is_private && m_scripting_site.has_value() && m_settings.scripting_settings().site_filters.contains(*m_scripting_site);
+}
+
 // There is something to reset once the site has a decision of its own.
 void SiteSettingsPopover::update_reset_link()
 {
@@ -599,7 +685,7 @@ void SiteSettingsPopover::update_reset_link()
         return;
     auto const& autoplay = m_settings.autoplay_settings();
     auto has_force_dark_choice = !m_is_private && m_settings.content_settings().force_dark_per_host.contains(m_host);
-    m_reset_permissions_link->setEnabled(m_has_decided_permissions || autoplay.site_filters.contains(m_origin) || has_force_dark_choice);
+    m_reset_permissions_link->setEnabled(m_has_decided_permissions || autoplay.site_filters.contains(m_origin) || has_force_dark_choice || has_scripting_choice());
 }
 
 void SiteSettingsPopover::update_chrome_style(QPalette const& palette)
@@ -617,6 +703,7 @@ void SiteSettingsPopover::update_icons()
         permission.icon->setPixmap(create_chrome_icon(permission_icon(permission.name), panel.body).pixmap(QSize(16, 16), devicePixelRatioF()));
         permission.button->setIcon(create_chrome_icon(ChromeIcon::ChevronDown, panel.muted));
     }
+    m_scripting_icon->setPixmap(create_chrome_icon(ChromeIcon::Document, panel.body).pixmap(QSize(16, 16), devicePixelRatioF()));
     m_autoplay_icon->setPixmap(create_chrome_icon(ChromeIcon::Volume, panel.body).pixmap(QSize(16, 16), devicePixelRatioF()));
     m_force_dark_icon->setPixmap(create_chrome_icon(ChromeIcon::Moon, panel.body).pixmap(QSize(16, 16), devicePixelRatioF()));
     m_content_blocking_icon->setPixmap(create_chrome_icon(ChromeIcon::ContentBlocking, panel.body).pixmap(QSize(16, 16), devicePixelRatioF()));

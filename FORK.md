@@ -41,7 +41,7 @@ The commit ranges below are as of the last rebase. Find the current ones with
 |--------|---------|------------------------|-------|-------------|
 | Fork infrastructure | `CI: Add a build and test workflow for the fork` to `Documentation: Add a design note for proxy settings` | none | rebase script exercised by hand on a conflicting branch | this file |
 | 1. Proxy settings and fail-closed proxying (#3) | not started | see note | see note | [ProxySettings.md](Documentation/Fork/ProxySettings.md) |
-| 2. Per-site JavaScript control (#4) | not started | | | |
+| 2. Per-site JavaScript control (#4) | in review | see note | see note | [JavaScriptControl.md](Documentation/Fork/JavaScriptControl.md) |
 | 3. Cookie and storage policy (#5) | not started | | | |
 | 4. Container tabs (#6) | not started | | | |
 | 5. Tor integration (#7) | not started | | | |

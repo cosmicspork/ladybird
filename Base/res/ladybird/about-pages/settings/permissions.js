@@ -22,6 +22,17 @@ const SITE_SETTINGS = {
             label: option.textContent,
         })),
     },
+    javascript: {
+        title: "JavaScript",
+        policies: Array.from(document.querySelector("#javascript-policy").options, option => ({
+            value: option.value,
+            label: option.textContent,
+        })),
+        // Scripts are allowed or blocked by site rather than by origin: an exception for example.com also covers
+        // www.example.com, whatever the scheme and port.
+        filterFromURL: url => url.hostname,
+        placeholder: "example.com",
+    },
     geolocation: { title: "Location", policies: PERMISSION_POLICIES },
     microphone: { title: "Microphone", policies: PERMISSION_POLICIES },
     notifications: { title: "Notifications", policies: PERMISSION_POLICIES },
@@ -144,6 +155,7 @@ function showSiteSettings(setting) {
     CURRENT_SETTING = setting;
 
     siteSettingsTitle.innerText = SITE_SETTINGS[setting].title;
+    siteSettingsInput.placeholder = SITE_SETTINGS[setting].placeholder ?? "https://example.com";
     populatePolicySelect(siteSettingsDecision, selectedPolicy);
     renderSiteSettings();
 
@@ -162,7 +174,7 @@ function addSiteSettingFilter() {
         siteSettingsInput.reportValidity();
         return;
     }
-    filter = url.origin;
+    filter = SITE_SETTINGS[CURRENT_SETTING].filterFromURL?.(url) ?? url.origin;
 
     ladybird.sendMessage("addSiteSettingFilter", {
         setting: CURRENT_SETTING,

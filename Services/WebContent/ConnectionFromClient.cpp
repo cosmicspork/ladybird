@@ -78,6 +78,7 @@
 #include <LibWeb/HTML/RemoteNavigable.h>
 #include <LibWeb/HTML/Scripting/Environments.h>
 #include <LibWeb/HTML/Scripting/TemporaryExecutionContext.h>
+#include <LibWeb/HTML/ScriptingSettings.h>
 #include <LibWeb/HTML/SessionHistoryEntry.h>
 #include <LibWeb/HTML/Storage.h>
 #include <LibWeb/HTML/Window.h>
@@ -3492,6 +3493,11 @@ void ConnectionFromClient::set_force_dark_for_local_roots(Web::PageId page_id, b
 void ConnectionFromClient::set_autoplay_settings(Web::PageId, Web::HTML::AutoplayPolicy policy, OrderedHashMap<String, Web::HTML::AutoplayPolicy> site_policies)
 {
     Web::HTML::AutoplaySettings::the().set_policy(policy, site_policies);
+}
+
+void ConnectionFromClient::set_scripting_settings(Web::PageId, Web::HTML::ScriptingPolicy policy, OrderedHashMap<String, Web::HTML::ScriptingPolicy> site_policies)
+{
+    Web::HTML::ScriptingSettings::the().set_policy(policy, move(site_policies));
 }
 
 void ConnectionFromClient::set_preferred_color_scheme(Web::PageId page_id, Web::CSS::PreferredColorScheme color_scheme)

@@ -66,6 +66,7 @@
 #include <LibWeb/HTML/Scripting/CompiledScriptCache.h>
 #include <LibWeb/HTML/Scripting/Environments.h>
 #include <LibWeb/HTML/Scripting/TemporaryExecutionContext.h>
+#include <LibWeb/HTML/ScriptingSettings.h>
 #include <LibWeb/HTML/Window.h>
 #include <LibWeb/HTML/WorkerGlobalScope.h>
 #include <LibWeb/HighResolutionTime/TimeOrigin.h>
@@ -690,6 +691,11 @@ GC::Ptr<PendingResponse> main_fetch(JS::Realm& realm, Infrastructure::FetchParam
         || SRI::should_request_be_blocked_by_integrity_policy(request) == ContentSecurityPolicy::Directives::Directive::Result::Blocked) {
         response = Infrastructure::Response::network_error("Request was blocked"_string);
     }
+
+    // AD-HOC: The user can keep the sites they visit from running scripts, or scripts from other sites. Such a script
+    //         is not fetched either.
+    if (!HTML::ScriptingSettings::the().allows_request(request))
+        response = Infrastructure::Response::network_error("Script was blocked by the scripting settings"_string);
 
     // 8. If request’s referrer policy is the empty string, then set request’s referrer policy to request’s policy
     //    container’s referrer policy.

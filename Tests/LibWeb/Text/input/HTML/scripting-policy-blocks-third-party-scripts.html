@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<!-- Served over HTTP (see the .headers file), so that the page is from a site that an exception can be for. -->
+<script src="../include.js"></script>
+<script>
+    window.loadedScripts = [];
+
+    function loadScript(name, url) {
+        return new Promise(resolve => {
+            const script = document.createElement("script");
+            script.src = url;
+            script.onload = () => resolve(window.loadedScripts.includes(name) ? "ran" : "loaded without running");
+            script.onerror = () => resolve("blocked");
+            document.head.appendChild(script);
+        });
+    }
+
+    asyncTest(async done => {
+        const server = httpTestServer();
+        const site = location.hostname;
+        const otherSite = uniqueLocalhostHostname("scripting-policy-other-site");
+
+        let scriptCount = 0;
+        const scriptOn = async hostname => {
+            const name = `script-${++scriptCount}`;
+            const url = new URL(
+                await server.createEcho("GET", `/scripting-policy/${name}.js`, {
+                    status: 200,
+                    headers: { "Content-Type": "text/javascript", "Cache-Control": "no-store" },
+                    body: `window.loadedScripts.push(${JSON.stringify(name)});`,
+                })
+            );
+            url.hostname = hostname;
+            return [name, url.href];
+        };
+        const scriptWrittenOutAs = toURL => {
+            const name = `script-${++scriptCount}`;
+            return [name, toURL(`window.loadedScripts.push(${JSON.stringify(name)});`)];
+        };
+
+        const checkScripts = async description => {
+            println(`${description}:`);
+            println(`  script from this site: ${await loadScript(...(await scriptOn(site)))}`);
+            println(`  script from a subdomain of this site: ${await loadScript(...(await scriptOn(`www.${site}`)))}`);
+            println(`  script from another site: ${await loadScript(...(await scriptOn(otherSite)))}`);
+            const dataURL = source => `data:text/javascript,${encodeURIComponent(source)}`;
+            println(`  script from a data: URL: ${await loadScript(...scriptWrittenOutAs(dataURL))}`);
+            const blobURL = source => URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+            println(`  script from a blob: URL: ${await loadScript(...scriptWrittenOutAs(blobURL))}`);
+
+            // Only scripts are held back. Anything else is still fetched from the other site.
+            const [, otherURL] = await scriptOn(otherSite);
+            const fetched = await fetch(otherURL, { mode: "no-cors" }).then(
+                () => "fetched",
+                () => "blocked"
+            );
+            println(`  fetch() of a script from another site: ${fetched}`);
+        };
+
+        // NB: The policy belongs to the process, which runs other tests after this one. So the rules here are only
+        //     ever for the hosts of this test, which no other test has, and are cleared whatever happens.
+        try {
+            await checkScripts("No rules");
+
+            internals.setScriptingPolicyForSite(site, "block-third-party");
+            await checkScripts("This site blocks third-party scripts");
+
+            internals.setScriptingPolicyForSite(site, "");
+            internals.setScriptingPolicyForSite(otherSite, "block");
+            await checkScripts("The other site is blocked where it is the site visited, which it is not here");
+
+            internals.setScriptingPolicyForSite("localhost", "block-third-party");
+            internals.setScriptingPolicyForSite(site, "allow");
+            await checkScripts("Parent domain blocks third-party scripts, this site allowed");
+        } finally {
+            internals.setScriptingPolicy("allow");
+        }
+
+        await checkScripts("Rules cleared");
+        done();
+    });
+</script>

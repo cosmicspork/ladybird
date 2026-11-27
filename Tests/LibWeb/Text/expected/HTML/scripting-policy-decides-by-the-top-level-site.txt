@@ -1,0 +1,15 @@
+No rules: ran: script element, event handler; noscript content: text
+This site blocked: ran: nothing; noscript content: markup
+This site written as a URL blocked: ran: nothing; noscript content: markup
+This site blocks third-party scripts: ran: script element, event handler; noscript content: text
+Parent domain blocked: ran: nothing; noscript content: markup
+Parent domain blocked, this site allowed: ran: script element, event handler; noscript content: text
+Subdomain of this site blocked: ran: script element, event handler; noscript content: text
+Another site blocked: ran: script element, event handler; noscript content: text
+This site blocked, then reset: ran: script element, event handler; noscript content: text
+Every site blocked: ran: nothing; noscript content: markup
+Every site blocked, this site allowed: ran: script element, event handler; noscript content: text
+Every site blocked, another site allowed: ran: nothing; noscript content: markup
+Every site blocks third-party scripts: ran: script element, event handler; noscript content: text
+Every site blocks third-party scripts, this site blocked: ran: nothing; noscript content: markup
+Rules cleared: ran: script element, event handler; noscript content: text

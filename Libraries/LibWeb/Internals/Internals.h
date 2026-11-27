@@ -204,6 +204,8 @@ public:
     GC::Ref<JS::Object> recorded_async_scrolling_state_object();
     void record_display_list_for_testing(bool paint_overlay, bool cold, bool finest_runs);
     void set_autoplay_policy(Utf16String const& policy);
+    void set_scripting_policy(Utf16String const& policy);
+    void set_scripting_policy_for_site(Utf16String const& site, Utf16String const& policy);
 
     Utf16String get_computed_role(DOM::Element& element);
     Utf16String get_computed_label(DOM::Element& element);

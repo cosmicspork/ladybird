@@ -50,6 +50,8 @@ public:
     void update_chrome_style(QPalette const&);
 
     Function<void(bool)> on_content_blocking_toggle;
+    // The site's pages have to be loaded again for a change to what scripts it may run to show.
+    Function<void()> on_scripting_policy_change;
     // Changes one of the site's permissions, to the decision given, or back to asking when there is none.
     Function<void(Web::Permissions::PermissionName, Optional<WebView::PermissionDecision>)> on_permission_change;
     Function<void()> on_reset_permissions;
@@ -60,8 +62,11 @@ public:
 private:
     virtual void content_settings_changed() override;
     virtual void autoplay_settings_changed() override { update_autoplay(); }
+    virtual void scripting_settings_changed() override { update_scripting(); }
 
     void update_autoplay();
+    void update_scripting();
+    bool has_scripting_choice() const;
     void update_reset_link();
     void update_icons();
     void show_blocked_resources(bool);
@@ -77,6 +82,12 @@ private:
     String m_origin;
     String m_host;
     bool m_is_private { false };
+    // The site an exception to the scripting policy made here is for, if the page is from one, and the host whose
+    // policy is shown.
+    Optional<String> m_scripting_site;
+    String m_scripting_host;
+    QLabel* m_scripting_icon { nullptr };
+    QPushButton* m_scripting_button { nullptr };
     QLabel* m_force_dark_icon { nullptr };
     PopoverSwitch* m_force_dark_switch { nullptr };
     QWidget* m_site_page { nullptr };

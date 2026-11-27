@@ -33,6 +33,7 @@ set(SOURCES
     HTML/ReplicatedNavigableState.cpp
     HTML/SameDocumentNavigationEntry.cpp
     HTML/SandboxingFlagSet.cpp
+    HTML/ScriptingPolicy.cpp
     HTML/Scripting/EnvironmentId.cpp
     HTML/Scripting/ScriptRegistryTypes.cpp
     HTML/Scripting/SerializedEnvironmentSettingsObject.cpp
@@ -174,8 +175,9 @@ import_rust_crate(MANIFEST_PATH Rust/Cargo.toml CRATE_NAME libwebcommon_rust FEA
 target_link_libraries(LibWebCommon PRIVATE libwebcommon_rust)
 target_link_libraries(libwebcommon_rust INTERFACE LibUnicode LibRegex)
 get_target_property(_libwebcommon_rust_lib libwebcommon_rust IMPORTED_LOCATION)
-set_property(SOURCE Fetch/Infrastructure/DataURL.cpp MimeSniff/MimeType.cpp MimeSniff/Resource.cpp APPEND PROPERTY OBJECT_DEPENDS ${_libwebcommon_rust_lib})
+set_property(SOURCE Fetch/Infrastructure/DataURL.cpp HTML/ScriptingPolicy.cpp MimeSniff/MimeType.cpp MimeSniff/Resource.cpp APPEND PROPERTY OBJECT_DEPENDS ${_libwebcommon_rust_lib})
 test_rust_crate(MANIFEST_PATH Rust/Cargo.toml CRATE_NAME libwebcommon_rust)
+test_rust_crate(MANIFEST_PATH ScriptPolicy/Rust/Cargo.toml CRATE_NAME libwebcommon_script_policy_rust)
 
 if (ENABLE_INSTALL_HEADERS)
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/CSS/PropertyList.h" "${CMAKE_CURRENT_BINARY_DIR}/CSS/PseudoElement.h" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/LibWebCommon/CSS")

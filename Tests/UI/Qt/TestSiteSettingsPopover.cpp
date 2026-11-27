@@ -53,6 +53,15 @@ static QCheckBox& force_dark_switch(Ladybird::SiteSettingsPopover& popover)
     VERIFY_NOT_REACHED();
 }
 
+static QPushButton& scripting_button(Ladybird::SiteSettingsPopover& popover)
+{
+    for (auto* widget : popover.findChildren<QPushButton*>()) {
+        if (widget->accessibleName() == "JavaScript on this site")
+            return *widget;
+    }
+    VERIFY_NOT_REACHED();
+}
+
 static QPushButton& reset_button(Ladybird::SiteSettingsPopover& popover)
 {
     for (auto* widget : popover.findChildren<QPushButton*>()) {
@@ -167,4 +176,49 @@ TEST_CASE(canceling_autoplay_does_not_reset_force_dark)
     EXPECT(closed_menu);
     EXPECT_EQ(settings.content_settings().force_dark_per_host.get("example.com"sv), true);
     EXPECT(force_dark_switch(popover).isChecked());
+}
+
+TEST_CASE(javascript_row_shows_the_rule_for_the_site_and_resets_its_exception)
+{
+    remove_settings();
+    ScopeGuard cleanup { remove_settings };
+    auto settings = WebView::Settings::create(settings_path());
+    Ladybird::SiteSettingsPopover popover(nullptr, settings);
+    popover.set_site(site_for());
+    auto& button = scripting_button(popover);
+    EXPECT(button.isEnabled());
+    EXPECT(button.text() == "Allow");
+    EXPECT(!reset_button(popover).isEnabled());
+
+    MUST(settings.add_scripting_site_filter("example.com"sv, Web::HTML::ScriptingPolicy::Block));
+    EXPECT(button.text() == "Block");
+    EXPECT(reset_button(popover).isEnabled());
+
+    size_t reloads = 0;
+    popover.on_scripting_policy_change = [&] { ++reloads; };
+    reset_button(popover).click();
+    EXPECT(settings.scripting_settings().site_filters.is_empty());
+    EXPECT(button.text() == "Allow");
+    EXPECT(!reset_button(popover).isEnabled());
+    EXPECT_EQ(reloads, 1u);
+
+    settings.set_scripting_policy(Web::HTML::ScriptingPolicy::BlockThirdParty);
+    EXPECT(button.text() == "Block from other sites");
+}
+
+TEST_CASE(private_site_shows_the_javascript_rule_without_changing_it)
+{
+    remove_settings();
+    ScopeGuard cleanup { remove_settings };
+    auto settings = WebView::Settings::create(settings_path());
+    MUST(settings.add_scripting_site_filter("example.com"sv, Web::HTML::ScriptingPolicy::Block));
+    Ladybird::SiteSettingsPopover popover(nullptr, settings);
+    popover.set_site(site_for("example.com"_string, true));
+    auto& button = scripting_button(popover);
+    EXPECT(!button.isEnabled());
+    EXPECT(button.text() == "Block");
+    EXPECT(!reset_button(popover).isEnabled());
+    button.click();
+    reset_button(popover).click();
+    EXPECT_EQ(settings.scripting_settings().site_filters.size(), 1u);
 }

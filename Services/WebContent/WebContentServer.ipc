@@ -34,6 +34,7 @@
 #include <LibWebCommon/HTML/ReplicatedNavigableState.h>
 #include <LibWebCommon/HTML/SandboxingFlagSet.h>
 #include <LibWebCommon/HTML/Scripting/ScriptRegistryTypes.h>
+#include <LibWebCommon/HTML/ScriptingPolicy.h>
 #include <LibWebCommon/HTML/SelectedFile.h>
 #include <LibWebCommon/HTML/SessionHistoryEntryDescriptor.h>
 #include <LibWebCommon/HTML/UserActivationConsumption.h>
@@ -267,6 +268,7 @@ endpoint WebContentServer routed by Web::PageId page_id
     set_force_dark_settings(Web::PageId page_id, bool enabled, HashMap<String, bool> per_host) =|
     set_force_dark_for_local_roots(Web::PageId page_id, bool enabled) =|
     set_autoplay_settings(Web::PageId page_id, Web::HTML::AutoplayPolicy policy, OrderedHashMap<String, Web::HTML::AutoplayPolicy> site_policies) =|
+    set_scripting_settings(Web::PageId page_id, Web::HTML::ScriptingPolicy policy, OrderedHashMap<String, Web::HTML::ScriptingPolicy> site_policies) =|
     set_preferred_color_scheme(Web::PageId page_id, Web::CSS::PreferredColorScheme color_scheme) =|
     set_preferred_contrast(Web::PageId page_id, Web::CSS::PreferredContrast contrast) =|
     set_preferred_motion(Web::PageId page_id, Web::CSS::PreferredMotion motion) =|

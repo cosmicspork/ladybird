@@ -13,6 +13,7 @@
 #include <LibCore/Promise.h>
 #include <LibURL/Parser.h>
 #include <LibWebCommon/HTML/AutoplayPolicy.h>
+#include <LibWebCommon/HTML/ScriptingPolicy.h>
 #include <LibWebView/Application.h>
 #include <LibWebView/BrowsingSession.h>
 #include <LibWebView/CrashReport.h>
@@ -263,6 +264,7 @@ JsonObject SettingsUI::serialize_settings() const
     // The sites the user allowed or blocked, for each permission.
     JsonObject site_settings;
     site_settings.set("autoplay"sv, settings.get("autoplay"sv).value());
+    site_settings.set("javascript"sv, settings.get("javascript"sv).value());
     for (auto name : Web::Permissions::PERMISSION_NAMES) {
         JsonArray sites;
         for (auto const& site : Application::default_session().permission_manager->site_decisions(name)) {
@@ -569,6 +571,9 @@ void SettingsUI::set_site_setting_policy(JsonValue const& site_setting)
         auto policy_utf16 = Utf16View::from_ascii(*policy);
         if (auto parsed = Web::HTML::autoplay_policy_from_string(policy_utf16); parsed.has_value())
             Application::settings().set_autoplay_policy(*parsed);
+    } else if (*setting == "javascript"sv) {
+        if (auto parsed = Web::HTML::scripting_policy_from_string(*policy); parsed.has_value())
+            Application::settings().set_scripting_policy(*parsed);
     } else if (auto name = Web::Permissions::permission_name_from_string(*setting); name.has_value()) {
         if (*policy == "ask"sv)
             Application::settings().set_permission_policy(*name, PermissionPolicy::Ask);
@@ -595,6 +600,13 @@ void SettingsUI::add_site_setting_filter(JsonValue const& site_setting)
     auto policy = site_setting.as_object().get_string("policy"sv);
     if (!setting.has_value() || !filter.has_value() || !policy.has_value() || !policy->is_ascii())
         return;
+
+    // NB: Scripting is decided by site rather than by origin, so its filters are not origins.
+    if (*setting == "javascript"sv) {
+        if (auto parsed = Web::HTML::scripting_policy_from_string(*policy); parsed.has_value())
+            (void)Application::settings().add_scripting_site_filter(*filter, *parsed);
+        return;
+    }
 
     auto origin = site_setting_origin(*filter);
     if (!origin.has_value())
@@ -627,6 +639,11 @@ void SettingsUI::remove_site_setting_filter(JsonValue const& site_setting)
     if (!setting.has_value() || !filter.has_value())
         return;
 
+    if (*setting == "javascript"sv) {
+        Application::settings().remove_scripting_site_filter(*filter);
+        return;
+    }
+
     auto origin = site_setting_origin(*filter);
     if (!origin.has_value())
         return;
@@ -649,6 +666,8 @@ void SettingsUI::remove_all_site_setting_filters(JsonValue const& site_setting)
 
     if (*setting == "autoplay"sv) {
         Application::settings().remove_all_autoplay_site_filters();
+    } else if (*setting == "javascript"sv) {
+        Application::settings().remove_all_scripting_site_filters();
     } else if (auto name = Web::Permissions::permission_name_from_string(*setting); name.has_value()) {
         auto& manager = *Application::default_session().permission_manager;
 
