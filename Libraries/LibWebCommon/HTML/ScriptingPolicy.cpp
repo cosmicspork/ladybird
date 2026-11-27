@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
-#include <AK/Utility.h>
+#include <AK/StdLibExtras.h>
 #include <LibURL/Origin.h>
 #include <LibWebCommon/HTML/ScriptingPolicy.h>
 #include <LibWebCommon/RustFFI.h>
