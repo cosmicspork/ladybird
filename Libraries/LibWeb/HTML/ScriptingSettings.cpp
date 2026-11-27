@@ -138,13 +138,25 @@ bool ScriptingSettings::allows(URL::Origin const& top_level_origin, URL::Origin 
     return allowed;
 }
 
+// NB: A WebUI page keeps its place in its fragment, as about:settings does for its tabs and dialogs, and is the same
+//     page whatever the fragment.
+static bool is_webui_page(URL::URL const& url)
+{
+    if (!url.fragment().has_value())
+        return URL::is_webui_url(url);
+
+    auto url_without_fragment = url;
+    url_without_fragment.set_fragment({});
+    return URL::is_webui_url(url_without_fragment);
+}
+
 bool ScriptingSettings::allows_scripting_in(DOM::Document const& document, EnvironmentSettingsObject const& settings) const
 {
     if (m_allow_everything.load())
         return true;
 
     // NB: WebUI pages are internal pages requiring javascript, so we do not consider user configuration for these.
-    if (URL::is_webui_url(document.url()))
+    if (is_webui_page(document.url()))
         return true;
 
     // NB: A document is in a page of its own site until its environment says which page it is in.
@@ -163,7 +175,7 @@ bool ScriptingSettings::allows_request(Fetch::Infrastructure::Request const& req
     auto const& client = request.client_snapshot();
     if (!client || !client->top_level_origin.has_value())
         return true;
-    if (client->top_level_creation_url.has_value() && URL::is_webui_url(*client->top_level_creation_url))
+    if (client->top_level_creation_url.has_value() && is_webui_page(*client->top_level_creation_url))
         return true;
 
     // NB: A local URL, such as a blob: or data: URL, holds a script that the document asking for it made or wrote
