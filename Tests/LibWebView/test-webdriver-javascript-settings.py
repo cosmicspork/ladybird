@@ -75,6 +75,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         query = dict(urllib.parse.parse_qsl(url.query))
         run = query.get("run", "")
         name = query.get("name", "")
+        server = self.server
+        assert isinstance(server, Server)
 
         # Everything a page reports is a resource that its load waits for, so the server has seen all of it by the
         # time the page has loaded. A script reports that it ran by writing out an image.
@@ -82,10 +84,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return f"document.write('<img src=\"/beacon?run={run}&name={what}\">');"
 
         if url.path == "/beacon":
-            self.server.record(run, name)
+            server.record(run, name)
             self.respond("image/gif", BEACON)
         elif url.path == "/script.js":
-            self.server.record(run, f"{name}-fetched")
+            server.record(run, f"{name}-fetched")
             self.respond("text/javascript", report(f"{name}-ran").encode())
         elif url.path == "/frame":
             self.respond(
