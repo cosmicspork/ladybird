@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <AK/Format.h>
 #include <AK/HashMap.h>
 #include <AK/Noncopyable.h>
 #include <AK/Optional.h>
@@ -75,6 +76,18 @@ public:
 private:
     FFI::ScriptPolicyRules* m_rules { nullptr };
     bool m_allow_everything { true };
+};
+
+}
+
+namespace AK {
+
+template<>
+struct Formatter<Web::HTML::ScriptingPolicy> : Formatter<StringView> {
+    ErrorOr<void> format(FormatBuilder& builder, Web::HTML::ScriptingPolicy policy)
+    {
+        return Formatter<StringView>::format(builder, Web::HTML::scripting_policy_to_string(policy));
+    }
 };
 
 }
