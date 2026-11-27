@@ -97,6 +97,7 @@
 #include <LibWeb/HTML/Scripting/DevToolsObjectTable.h>
 #include <LibWeb/HTML/Scripting/Environments.h>
 #include <LibWeb/HTML/Scripting/TemporaryExecutionContext.h>
+#include <LibWeb/HTML/ScriptingSettings.h>
 #include <LibWeb/HTML/SessionHistoryEntry.h>
 #include <LibWeb/HTML/SharedResourceRequest.h>
 #include <LibWeb/HTML/TextDirectiveGenerator.h>
@@ -1807,6 +1808,24 @@ void Internals::set_autoplay_policy(Utf16String const& policy)
 {
     if (auto parsed = HTML::autoplay_policy_from_string(policy.utf16_view()); parsed.has_value())
         HTML::AutoplaySettings::the().set_policy(*parsed, {});
+}
+
+void Internals::set_scripting_policy(Utf16String const& policy)
+{
+    if (auto parsed = HTML::scripting_policy_from_string(policy.to_utf8()); parsed.has_value())
+        HTML::ScriptingSettings::the().set_policy(*parsed, {});
+}
+
+void Internals::set_scripting_policy_for_site(Utf16String const& site, Utf16String const& policy)
+{
+    auto normalized_site = HTML::normalize_scripting_site(site.to_utf8());
+    if (!normalized_site.has_value())
+        return;
+
+    if (policy.is_empty())
+        HTML::ScriptingSettings::the().set_site_policy_for_testing(*normalized_site, {});
+    else if (auto parsed = HTML::scripting_policy_from_string(policy.to_utf8()); parsed.has_value())
+        HTML::ScriptingSettings::the().set_site_policy_for_testing(*normalized_site, *parsed);
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static

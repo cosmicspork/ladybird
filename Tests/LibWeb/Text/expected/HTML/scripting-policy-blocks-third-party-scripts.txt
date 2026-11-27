@@ -1,0 +1,35 @@
+No rules:
+  script from this site: ran
+  script from a subdomain of this site: ran
+  script from another site: ran
+  script from a data: URL: ran
+  script from a blob: URL: ran
+  fetch() of a script from another site: fetched
+This site blocks third-party scripts:
+  script from this site: ran
+  script from a subdomain of this site: ran
+  script from another site: blocked
+  script from a data: URL: ran
+  script from a blob: URL: ran
+  fetch() of a script from another site: fetched
+The other site is blocked where it is the site visited, which it is not here:
+  script from this site: ran
+  script from a subdomain of this site: ran
+  script from another site: ran
+  script from a data: URL: ran
+  script from a blob: URL: ran
+  fetch() of a script from another site: fetched
+Parent domain blocks third-party scripts, this site allowed:
+  script from this site: ran
+  script from a subdomain of this site: ran
+  script from another site: ran
+  script from a data: URL: ran
+  script from a blob: URL: ran
+  fetch() of a script from another site: fetched
+Rules cleared:
+  script from this site: ran
+  script from a subdomain of this site: ran
+  script from another site: ran
+  script from a data: URL: ran
+  script from a blob: URL: ran
+  fetch() of a script from another site: fetched

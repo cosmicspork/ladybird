@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<!-- Served over HTTP (see the .headers file), so that the page is from a site that an exception can be for. -->
+<script src="../include.js"></script>
+<script>
+    // What the policy that applies right now lets through. A script that is already running, like this one, is not
+    // stopped, but nothing new is started: not a script element, and not an event handler attribute. Markup is parsed
+    // as it is for a document without scripting, so the content of a noscript element becomes elements.
+    function probe() {
+        window.scriptsThatRan = [];
+
+        const script = document.createElement("script");
+        script.textContent = `window.scriptsThatRan.push("script element");`;
+        document.head.appendChild(script);
+        script.remove();
+
+        const target = document.createElement("div");
+        target.setAttribute("onclick", `window.scriptsThatRan.push("event handler")`);
+        target.dispatchEvent(new Event("click"));
+
+        const holder = document.createElement("div");
+        holder.innerHTML = "<noscript><b>fallback</b></noscript>";
+        const fallback = holder.querySelector("b") ? "markup" : "text";
+
+        return `ran: ${window.scriptsThatRan.join(", ") || "nothing"}; noscript content: ${fallback}`;
+    }
+
+    // NB: The policy belongs to the process, which runs other tests after this one. So the rules are only in place
+    //     while probe() runs, which has no other script run in between, and are cleared whatever happens.
+    function check(description, setRules) {
+        let result;
+        try {
+            setRules();
+            result = probe();
+        } finally {
+            internals.setScriptingPolicy("allow");
+        }
+        println(`${description}: ${result}`);
+    }
+
+    test(() => {
+        const site = location.hostname;
+        const policyForSite = (site, policy) => internals.setScriptingPolicyForSite(site, policy);
+
+        check("No rules", () => {});
+        check("This site blocked", () => policyForSite(site, "block"));
+        check("This site written as a URL blocked", () => policyForSite(`${location.origin}/path?query`, "block"));
+        check("This site blocks third-party scripts", () => policyForSite(site, "block-third-party"));
+        check("Parent domain blocked", () => policyForSite("localhost", "block"));
+        check("Parent domain blocked, this site allowed", () => {
+            policyForSite("localhost", "block");
+            policyForSite(site, "allow");
+        });
+        check("Subdomain of this site blocked", () => policyForSite(`www.${site}`, "block"));
+        check("Another site blocked", () => policyForSite("other-site.localhost", "block"));
+        check("This site blocked, then reset", () => {
+            policyForSite(site, "block");
+            policyForSite(site, "");
+        });
+        check("Every site blocked", () => internals.setScriptingPolicy("block"));
+        check("Every site blocked, this site allowed", () => {
+            internals.setScriptingPolicy("block");
+            policyForSite(site, "allow");
+        });
+        check("Every site blocked, another site allowed", () => {
+            internals.setScriptingPolicy("block");
+            policyForSite("other-site.localhost", "allow");
+        });
+        check("Every site blocks third-party scripts", () => internals.setScriptingPolicy("block-third-party"));
+        check("Every site blocks third-party scripts, this site blocked", () => {
+            internals.setScriptingPolicy("block-third-party");
+            policyForSite(site, "block");
+        });
+        check("Rules cleared", () => {});
+    });
+</script>

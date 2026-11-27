@@ -232,6 +232,10 @@ interface Internals {
     [ImplementedAs=recorded_async_scrolling_state_object] object recordedAsyncScrollingState();
     undefined recordDisplayListForTesting(optional boolean paintOverlay = false, optional boolean cold = false, optional boolean finestRuns = false);
     undefined setAutoplayPolicy(DOMString policy);
+    // The policy for which sites of this process may run scripts: "allow", "block-third-party" or "block". Setting
+    // the policy for every site forgets the policies of single sites; a site with the empty policy has none.
+    undefined setScriptingPolicy(DOMString policy);
+    undefined setScriptingPolicyForSite(DOMString site, DOMString policy);
 
     DOMString getComputedRole(Element element);
     DOMString getComputedLabel(Element element);

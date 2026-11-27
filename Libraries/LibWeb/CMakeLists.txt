@@ -567,6 +567,7 @@ set(SOURCES
     HTML/Scripting/WorkerAgent.cpp
     HTML/Scripting/WorkerEnvironmentSettingsObject.cpp
     HTML/Scripting/WorkletEnvironmentSettingsObject.cpp
+    HTML/ScriptingSettings.cpp
     HTML/SessionHistoryEntry.cpp
     HTML/SharedResourceRequest.cpp
     HTML/AnimatedBitmapDecodedImageData.cpp

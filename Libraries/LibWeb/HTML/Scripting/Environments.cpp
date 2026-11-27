@@ -28,6 +28,7 @@
 #include <LibWeb/HTML/Scripting/Environments.h>
 #include <LibWeb/HTML/Scripting/ExceptionReporter.h>
 #include <LibWeb/HTML/Scripting/WindowEnvironmentSettingsObject.h>
+#include <LibWeb/HTML/ScriptingSettings.h>
 #include <LibWeb/HTML/Window.h>
 #include <LibWeb/HTML/WindowOrWorkerGlobalScope.h>
 #include <LibWeb/HTML/WorkerAgentParent.h>
@@ -346,6 +347,10 @@ bool is_scripting_enabled(EnvironmentSettingsObject const& settings)
 
     // NB: WebUI pages are internal pages requiring javascript, so we do not consider user configuration for these.
     if (!document.page().is_scripting_enabled() && !URL::is_webui_url(document.url()))
+        return false;
+
+    // AD-HOC: Nor has the user disabled scripting for the site of the page the document is in.
+    if (!ScriptingSettings::the().allows_scripting_in(document, settings))
         return false;
 
     // Either settings's global object is not a Window object, or settings's global object's associated Document's active sandboxing flag set does not have its sandboxed scripts browsing context flag set.
