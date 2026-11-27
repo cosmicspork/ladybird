@@ -1353,6 +1353,20 @@
                             </div>
                         </div>
                         <div class="card-group inline-container control-row">
+                            <label for="javascript-policy">
+                                JavaScript
+                                <p class="description">Sites can run scripts. Many sites do not work without them.</p>
+                            </label>
+                            <div class="setting-controls">
+                                <select id="javascript-policy">
+                                    <option value="allow">Allow</option>
+                                    <option value="block-third-party">Block from other sites</option>
+                                    <option value="block">Block</option>
+                                </select>
+                                <button id="javascript-settings" class="secondary-button row-action">Exceptions…</button>
+                            </div>
+                        </div>
+                        <div class="card-group inline-container control-row">
                             <label for="geolocation-policy">
                                 Location
                                 <p class="description">Sites can ask to know your location.</p>
