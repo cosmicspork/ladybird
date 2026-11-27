@@ -1575,6 +1575,9 @@ void Tab::show_site_settings_popover()
                 return;
             view().reload();
         };
+        m_site_settings_popover->on_scripting_policy_change = [this] {
+            view().reload();
+        };
         m_site_settings_popover->on_open_all_site_settings = [this] {
             m_window->new_tab_from_url(URL::Parser::basic_parse("about:settings#permissions"sv).release_value(), Web::HTML::ActivateTab::Yes, BrowserWindow::TabLocation::after_current_tab());
         };
