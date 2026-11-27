@@ -82,6 +82,7 @@ static constexpr auto SITE_SETTING_POLICY_KEY = "policy"sv;
 static constexpr auto SITE_SETTING_SITE_FILTERS_KEY = "siteFilters"sv;
 
 static constexpr auto AUTOPLAY_KEY = "autoplay"sv;
+static constexpr auto SCRIPTING_KEY = "javascript"sv;
 
 static constexpr auto GLOBAL_PRIVACY_CONTROL_KEY = "globalPrivacyControl"sv;
 static constexpr auto CRASH_REPORT_SENDING_KEY = "crashReportSending"sv;
@@ -528,6 +529,34 @@ void Settings::load_from_json(JsonValue const& json_value)
 
     load_site_setting(m_autoplay, AUTOPLAY_KEY);
 
+    if (auto scripting = json.get_object(SCRIPTING_KEY); scripting.has_value()) {
+        if (auto policy = scripting->get_string(SITE_SETTING_POLICY_KEY); policy.has_value()) {
+            if (auto parsed = Web::HTML::scripting_policy_from_string(*policy); parsed.has_value())
+                m_scripting.policy = *parsed;
+        }
+
+        if (auto site_filters = scripting->get_array(SITE_SETTING_SITE_FILTERS_KEY); site_filters.has_value()) {
+            m_scripting.site_filters.clear();
+
+            site_filters->for_each([&](JsonValue const& site_filter) {
+                if (!site_filter.is_object())
+                    return;
+
+                auto filter = site_filter.as_object().get_string(SITE_SETTING_FILTER_KEY);
+                auto policy = site_filter.as_object().get_string(SITE_SETTING_POLICY_KEY);
+                if (!filter.has_value() || !policy.has_value())
+                    return;
+
+                // NB: A filter that names no site, or has a policy this version does not know, is dropped rather than
+                //     guessed at.
+                auto site = Web::HTML::normalize_scripting_site(*filter);
+                auto parsed = Web::HTML::scripting_policy_from_string(*policy);
+                if (site.has_value() && parsed.has_value())
+                    m_scripting.site_filters.set(site.release_value(), *parsed);
+            });
+        }
+    }
+
     for (auto name : Web::Permissions::PERMISSION_NAMES) {
         if (auto setting = json.get_object(Web::Permissions::to_string(name)); setting.has_value()) {
             if (auto policy = setting->get_string(SITE_SETTING_POLICY_KEY); policy == "ask"sv)
@@ -651,6 +680,7 @@ void Settings::replace_with_json(JsonValue const& json, PersistChange persist_ch
     auto browsing_behavior_changed = changed(BROWSING_BEHAVIOR_KEY);
     auto search_engine_settings_changed = changed(SEARCH_ENGINE_KEY);
     auto autoplay_settings_changed = changed(AUTOPLAY_KEY);
+    auto scripting_settings_changed = changed(SCRIPTING_KEY);
     auto global_privacy_control_changed = changed(GLOBAL_PRIVACY_CONTROL_KEY);
     auto crash_report_sending_changed = changed(CRASH_REPORT_SENDING_KEY);
     auto dns_settings_changed = changed(DNS_SETTINGS_KEY);
@@ -682,6 +712,8 @@ void Settings::replace_with_json(JsonValue const& json, PersistChange persist_ch
             observer.search_engine_settings_changed();
         if (autoplay_settings_changed)
             observer.autoplay_settings_changed();
+        if (scripting_settings_changed)
+            observer.scripting_settings_changed();
         for (auto name : changed_site_permissions)
             observer.permission_settings_changed(name);
         if (global_privacy_control_changed)
@@ -933,6 +965,20 @@ JsonValue Settings::serialize_json() const
     };
 
     save_site_setting(m_autoplay, AUTOPLAY_KEY);
+
+    JsonArray scripting_site_filters;
+    scripting_site_filters.ensure_capacity(m_scripting.site_filters.size());
+    for (auto const& [filter, policy] : m_scripting.site_filters) {
+        JsonObject site_filter;
+        site_filter.set(SITE_SETTING_FILTER_KEY, filter);
+        site_filter.set(SITE_SETTING_POLICY_KEY, MUST(String::from_utf8(Web::HTML::scripting_policy_to_string(policy))));
+        scripting_site_filters.must_append(move(site_filter));
+    }
+
+    JsonObject scripting;
+    scripting.set(SITE_SETTING_POLICY_KEY, MUST(String::from_utf8(Web::HTML::scripting_policy_to_string(m_scripting.policy))));
+    scripting.set(SITE_SETTING_SITE_FILTERS_KEY, move(scripting_site_filters));
+    settings.set(SCRIPTING_KEY, move(scripting));
 
     for (auto name : Web::Permissions::PERMISSION_NAMES) {
         JsonObject setting;
@@ -1491,6 +1537,54 @@ void Settings::remove_all_autoplay_site_filters()
 
     for (auto& observer : m_observers)
         observer.autoplay_settings_changed();
+}
+
+Web::HTML::ScriptingPolicy Settings::scripting_policy_for_host(StringView host) const
+{
+    return Web::HTML::ScriptingRules { m_scripting.policy, m_scripting.site_filters }.policy_for_host(host);
+}
+
+void Settings::set_scripting_policy(Web::HTML::ScriptingPolicy policy)
+{
+    m_scripting.policy = policy;
+    persist_settings();
+
+    for (auto& observer : m_observers)
+        observer.scripting_settings_changed();
+}
+
+ErrorOr<void> Settings::add_scripting_site_filter(StringView site, Web::HTML::ScriptingPolicy policy)
+{
+    auto normalized_site = Web::HTML::normalize_scripting_site(site);
+    if (!normalized_site.has_value())
+        return Error::from_string_literal("Invalid site");
+
+    m_scripting.site_filters.set(normalized_site.release_value(), policy);
+    persist_settings();
+
+    for (auto& observer : m_observers)
+        observer.scripting_settings_changed();
+    return {};
+}
+
+void Settings::remove_scripting_site_filter(StringView site)
+{
+    auto normalized_site = Web::HTML::normalize_scripting_site(site);
+    if (!normalized_site.has_value() || !m_scripting.site_filters.remove(*normalized_site))
+        return;
+    persist_settings();
+
+    for (auto& observer : m_observers)
+        observer.scripting_settings_changed();
+}
+
+void Settings::remove_all_scripting_site_filters()
+{
+    m_scripting.site_filters.clear();
+    persist_settings();
+
+    for (auto& observer : m_observers)
+        observer.scripting_settings_changed();
 }
 
 PermissionPolicy Settings::permission_policy(Web::Permissions::PermissionName name) const

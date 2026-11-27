@@ -1983,6 +1983,12 @@ static void send_autoplay_settings(WebContentPage const& page)
     }
 }
 
+static void send_scripting_settings(WebContentPage const& page)
+{
+    auto const& scripting_settings = Application::settings().scripting_settings();
+    page.async_set_scripting_settings(scripting_settings.policy, scripting_settings.site_filters);
+}
+
 static void send_global_privacy_control(WebContentPage const& page)
 {
     page.async_set_enable_global_privacy_control(Application::settings().global_privacy_control() == GlobalPrivacyControl::Yes);
@@ -2011,6 +2017,7 @@ void ViewImplementation::send_preferences_to_page(WebContentPage& page)
     page.async_set_zoom_level(m_zoom_level);
     send_browsing_behavior(page);
     send_autoplay_settings(page);
+    send_scripting_settings(page);
     send_global_privacy_control(page);
     send_offer_to_trust_self_signed_certificates(page);
     auto* spell_checker = Application::the().spell_checker();
@@ -5240,6 +5247,11 @@ void ViewImplementation::browsing_behavior_changed()
 void ViewImplementation::autoplay_settings_changed()
 {
     traversable().for_each_hosting_page(send_autoplay_settings);
+}
+
+void ViewImplementation::scripting_settings_changed()
+{
+    traversable().for_each_hosting_page(send_scripting_settings);
 }
 
 void ViewImplementation::permission_settings_changed(Web::Permissions::PermissionName name)

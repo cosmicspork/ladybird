@@ -18,6 +18,7 @@
 #include <LibHTTP/Cache/DiskCacheSettings.h>
 #include <LibURL/URL.h>
 #include <LibWebCommon/HTML/AutoplayPolicy.h>
+#include <LibWebCommon/HTML/ScriptingPolicy.h>
 #include <LibWebCommon/Permissions/Permissions.h>
 #include <LibWebCommon/WebView/BrowsingBehavior.h>
 #include <LibWebView/Forward.h>
@@ -126,6 +127,10 @@ struct SiteSetting {
 
 using AutoplaySiteSetting = SiteSetting<Web::HTML::AutoplayPolicy, Web::HTML::AutoplayPolicy::BlockAudio>;
 
+// Which sites may run scripts. A site filter is a site in the spelling of Web::HTML::normalize_scripting_site(), and
+// is found by the host of the top-level document.
+using ScriptingSiteSetting = SiteSetting<Web::HTML::ScriptingPolicy, Web::HTML::ScriptingPolicy::Allow>;
+
 enum class PermissionPolicy : u8 {
     Ask,
     Block,
@@ -203,6 +208,7 @@ public:
     virtual void browsing_behavior_changed() { }
     virtual void search_engine_settings_changed() { }
     virtual void autoplay_settings_changed() { }
+    virtual void scripting_settings_changed() { }
     virtual void permission_settings_changed(Web::Permissions::PermissionName) { }
     virtual void global_privacy_control_changed() { }
     virtual void crash_report_sending_changed() { }
@@ -235,6 +241,7 @@ struct WEBVIEW_API SettingsData {
     Vector<SearchEngine> m_custom_search_engines;
 
     AutoplaySiteSetting m_autoplay;
+    ScriptingSiteSetting m_scripting;
     HashMap<Web::Permissions::PermissionName, PermissionPolicy> m_permission_policies;
 
     GlobalPrivacyControl m_global_privacy_control { GlobalPrivacyControl::No };
@@ -342,6 +349,16 @@ public:
     void add_autoplay_site_filter(String const&, Web::HTML::AutoplayPolicy);
     void remove_autoplay_site_filter(String const&);
     void remove_all_autoplay_site_filters();
+
+    ScriptingSiteSetting const& scripting_settings() const { return m_scripting; }
+    // The policy for pages whose top-level document is from the host: that of the site filter that matches the host
+    // most closely, or the policy for every site.
+    Web::HTML::ScriptingPolicy scripting_policy_for_host(StringView host) const;
+    void set_scripting_policy(Web::HTML::ScriptingPolicy);
+    // The site may be written as the user would, with a scheme, a port or a path. Text that names no site is an error.
+    ErrorOr<void> add_scripting_site_filter(StringView site, Web::HTML::ScriptingPolicy);
+    void remove_scripting_site_filter(StringView site);
+    void remove_all_scripting_site_filters();
 
     PermissionPolicy permission_policy(Web::Permissions::PermissionName) const;
     void set_permission_policy(Web::Permissions::PermissionName, PermissionPolicy);

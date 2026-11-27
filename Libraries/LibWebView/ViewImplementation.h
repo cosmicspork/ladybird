@@ -972,6 +972,7 @@ protected:
     virtual void content_settings_changed() override;
     virtual void browsing_behavior_changed() override;
     virtual void autoplay_settings_changed() override;
+    virtual void scripting_settings_changed() override;
     virtual void permission_settings_changed(Web::Permissions::PermissionName name) override;
     virtual void global_privacy_control_changed() override;
     virtual void config_variable_changed(ConfigVariableID) override;
