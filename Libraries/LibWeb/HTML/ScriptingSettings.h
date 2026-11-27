@@ -6,9 +6,10 @@
 
 #pragma once
 
+#include <AK/Atomic.h>
 #include <AK/HashMap.h>
+#include <AK/RWLockProtected.h>
 #include <AK/String.h>
-#include <AK/Vector.h>
 #include <AK/kmalloc.h>
 #include <LibURL/Origin.h>
 #include <LibWeb/Export.h>
@@ -23,6 +24,8 @@ namespace Web::HTML {
 // The site that decides is the one of the top-level document, so a frame runs scripts by the rules of the page it is
 // in. Under a policy that only blocks third-party scripts, a script is third-party if it is fetched from another site
 // than that of the top-level document, or if it is in a frame whose document is from another site.
+//
+// The rules are set on the main thread. Any thread may ask them, as a worker's thread does when it fetches a script.
 class WEB_API ScriptingSettings {
 public:
     AK_ALLOC_WITH_KMALLOC;
@@ -45,22 +48,21 @@ private:
     ~ScriptingSettings();
 
     bool allows(URL::Origin const& top_level_origin, URL::Origin const& script_origin) const;
-    void rebuild_rules();
 
-    struct Decision {
-        URL::Origin top_level_origin;
-        URL::Origin script_origin;
-        bool allowed { false };
+    struct Rules {
+        ScriptingPolicy policy { ScriptingPolicy::Allow };
+        OrderedHashMap<String, ScriptingPolicy> site_policies;
+        ScriptingRules rules;
     };
+    void did_change_rules(Rules&);
 
-    ScriptingPolicy m_policy { ScriptingPolicy::Allow };
-    OrderedHashMap<String, ScriptingPolicy> m_site_policies;
-    ScriptingRules m_rules;
+    RWLockProtected<Rules> m_rules;
 
-    // The last few decisions, since the same few documents ask before each script and event handler they run.
-    static constexpr size_t MAX_RECENT_DECISIONS = 8;
-    mutable Vector<Decision, MAX_RECENT_DECISIONS> m_recent_decisions;
-    mutable size_t m_next_recent_decision { 0 };
+    // Whether every script runs on every site, which is so until the user says otherwise.
+    Atomic<bool> m_allow_everything { true };
+
+    // Counts the changes of the rules, so that a thread can tell that the decisions it remembers are out of date.
+    Atomic<u64> m_generation { 0 };
 };
 
 }

@@ -88,8 +88,8 @@ Two hooks, both in existing upstream functions:
 The Debug menu switch is checked first and still turns everything off. WebUI pages (`about:settings` and the rest) are
 exempt from the rules, because the browser's own interface needs scripts to work.
 
-`ScriptingSettings` keeps the last eight decisions, because a document asks before every script and event handler
-it runs and telling the parties apart needs a public suffix lookup.
+`ScriptingSettings` keeps the last eight decisions of each thread, because a document asks before every script and
+event handler it runs and telling the parties apart needs a public suffix lookup.
 
 ### Storage
 
@@ -173,9 +173,10 @@ Larger additions, next to the autoplay code they mirror:
 
 ## Known limits
 
-- Dedicated and shared workers run in WebWorker processes, which do not receive the rules. A worker can only be
-  started by a script, so `block` is unaffected, but under `block-third-party` a first-party worker can still
-  `importScripts()` from another site.
+- A worker runs on a thread of its page's WebContent process, and the scripts it loads go through the same fetch
+  hook with the top-level origin of the page that started it. So under `block-third-party` a worker cannot be started
+  from, or `importScripts()` from, another site. This path has no test of its own yet. `ScriptingSettings` can be
+  asked from any thread for this reason.
 - A change of rules takes effect for documents loaded afterwards. A document that is already open keeps its parsed
   `<noscript>` state, and its scripts stop or start with the next thing it tries to run. The popover reloads the tab
   for this reason.
