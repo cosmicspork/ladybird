@@ -69,8 +69,10 @@ Optional<String> normalize_site_data_site(StringView input)
     Optional<URL::URL> url;
     if (input.contains("://"sv))
         url = URL::Parser::basic_parse(input);
-    else
-        url = URL::Parser::basic_parse(MUST(String::formatted("https://{}", input)).bytes_as_string_view());
+    else {
+        auto with_scheme = MUST(String::formatted("https://{}", input));
+        url = URL::Parser::basic_parse(with_scheme.bytes_as_string_view());
+    }
 
     if (!url.has_value())
         return {};
