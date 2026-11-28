@@ -18,6 +18,7 @@
 #include <LibRequests/CacheSizes.h>
 #include <LibURL/Forward.h>
 #include <LibWebCommon/Forward.h>
+#include <LibWebCommon/StorageAPI/SiteDataPolicy.h>
 #include <LibWebView/BrowsingSession.h>
 #include <LibWebView/Forward.h>
 
@@ -43,6 +44,11 @@ public:
     static NonnullOwnPtr<CookieJar> create(IsPrivate = IsPrivate::No);
 
     ~CookieJar();
+
+    // The user's rules for which sites may keep cookies. A context the rules deny reads no cookies, and the cookies it
+    // sets are ignored; the cookies already in the jar stay. A new jar allows every site.
+    Web::StorageAPI::SiteDataRules const& site_data_rules() const { return m_site_data_rules; }
+    void set_site_data_rules(Web::StorageAPI::SiteDataRules);
 
     // A context of nothing stands for a first-party context, as for the UI process's own requests. A third-party context
     // only uses the cookies set in a third-party context under the same top-level site. See HTTP::Cookie::PartitionContext.
@@ -131,10 +137,12 @@ private:
         WebDriver,
     };
 
+    Optional<Utf16String> permitted_partition_key_for(URL::URL const&, Optional<HTTP::Cookie::PartitionContext> const&) const;
     Vector<HTTP::Cookie::Cookie> get_matching_cookies(URL::URL const& url, HTTP::Cookie::Source source, Utf16String const& partition_key, HTTP::Cookie::SameSiteContext, MatchingCookiesSpecMode mode = MatchingCookiesSpecMode::RFC6265);
 
     Optional<PersistedStorage> m_persisted_storage;
     TransientStorage m_transient_storage;
+    Web::StorageAPI::SiteDataRules m_site_data_rules;
 };
 
 }

@@ -2021,6 +2021,12 @@ void ViewImplementation::send_preferences_to_page(WebContentPage& page)
     page.async_set_has_picture_in_picture_support(Application::the().supports_picture_in_picture());
 }
 
+void ViewImplementation::notify_cookie_access_changed()
+{
+    for (auto const& [domain, document_index] : m_document_cookie_version_indices)
+        Core::increment_shared_version(m_document_cookie_version_buffer, document_index);
+}
+
 void ViewImplementation::notify_cookies_changed(HashTable<String> const& changed_domains, ReadonlySpan<HTTP::Cookie::Cookie> page_cookies, ReadonlySpan<HTTP::Cookie::Cookie> host_cookies)
 {
     for (auto const& domain : changed_domains) {

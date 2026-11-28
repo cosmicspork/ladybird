@@ -43,6 +43,31 @@ void WebContentTestClient::did_expire_cookies_with_time_offset(AK::Duration offs
     m_client.session().cookie_jar->expire_cookies_with_time_offset(offset);
 }
 
+void WebContentTestClient::did_set_site_data_policy_for_site_for_testing(String site, Optional<u8> policy)
+{
+    using Web::StorageAPI::SiteDataPolicy;
+
+    auto& cookie_jar = *m_client.session().cookie_jar;
+    auto site_policies = cookie_jar.site_data_rules().site_policies();
+
+    if (!policy.has_value()) {
+        site_policies.remove(site);
+    } else {
+        switch (*policy) {
+        case to_underlying(SiteDataPolicy::Allow):
+        case to_underlying(SiteDataPolicy::BlockThirdParty):
+        case to_underlying(SiteDataPolicy::Block):
+            site_policies.set(move(site), static_cast<SiteDataPolicy>(*policy));
+            break;
+        default:
+            m_client.did_misbehave("did_set_site_data_policy_for_site_for_testing"sv, "not a site data policy"sv);
+            return;
+        }
+    }
+
+    cookie_jar.set_site_data_rules({ cookie_jar.site_data_rules().default_policy(), move(site_policies) });
+}
+
 Messages::WebContentTestClient::SetPermissionForTestingResponse WebContentTestClient::set_permission_for_testing(Web::PageId page_id, Web::HTML::CrossProcessId document_id, String name, String state)
 {
     if (auto* page = m_client.page(page_id))

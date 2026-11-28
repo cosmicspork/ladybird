@@ -42,7 +42,7 @@ The commit ranges below are as of the last rebase. Find the current ones with
 | Fork infrastructure | `CI: Add a build and test workflow for the fork` to `Documentation: Add a design note for proxy settings` | none | rebase script exercised by hand on a conflicting branch | this file |
 | 1. Proxy settings and fail-closed proxying (#3) | not started | see note | see note | [ProxySettings.md](Documentation/Fork/ProxySettings.md) |
 | 2. Per-site JavaScript control (#4) | not started | | | |
-| 3. Cookie and storage policy (#5) | not started | | | |
+| 3. Cookie and storage policy (#5) | cookie policy: `Documentation: Add a design note for the cookie and storage policy` to `LibWebView+Base: Add cookie settings to about:settings`; storage partitioning and clearing on close not started | `CookieJar.{h,cpp}`, `Settings.{h,cpp}`, `Application.{h,cpp}`, `ViewImplementation.{h,cpp}`, `WebUI/SettingsUI.{h,cpp}`, `settings.html`, `settings/permissions.js`, and the test hook in `Internals`, `Page.h`, `PageClient` and `WebContentTestClient` | Rust unit tests, `TestSiteDataPolicy`, `TestCookieJar`, `TestSiteDataSettings`, one LibWeb Text test, `test-webdriver-cookie-settings.py` | [CookieAndStoragePolicy.md](Documentation/Fork/CookieAndStoragePolicy.md) |
 | 4. Container tabs (#6) | not started | | | |
 | 5. Tor integration (#7) | not started | | | |
 | 6. Fingerprinting protections (#8) | not started | | | |

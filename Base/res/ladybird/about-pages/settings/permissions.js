@@ -15,6 +15,17 @@ const PERMISSION_POLICIES = [
 ];
 
 const SITE_SETTINGS = {
+    cookies: {
+        title: "Cookies",
+        policies: Array.from(document.querySelector("#cookies-policy").options, option => ({
+            value: option.value,
+            label: option.textContent,
+        })),
+        // Cookies are allowed or blocked by site rather than by origin: an exception for example.com also covers
+        // www.example.com, whatever the scheme and port.
+        filterFromURL: url => url.hostname,
+        placeholder: "example.com",
+    },
     autoplay: {
         title: "Autoplay",
         policies: Array.from(document.querySelector("#autoplay-policy").options, option => ({
@@ -144,6 +155,7 @@ function showSiteSettings(setting) {
     CURRENT_SETTING = setting;
 
     siteSettingsTitle.innerText = SITE_SETTINGS[setting].title;
+    siteSettingsInput.placeholder = SITE_SETTINGS[setting].placeholder ?? "https://example.com";
     populatePolicySelect(siteSettingsDecision, selectedPolicy);
     renderSiteSettings();
 
@@ -162,7 +174,7 @@ function addSiteSettingFilter() {
         siteSettingsInput.reportValidity();
         return;
     }
-    filter = url.origin;
+    filter = SITE_SETTINGS[CURRENT_SETTING].filterFromURL?.(url) ?? url.origin;
 
     ladybird.sendMessage("addSiteSettingFilter", {
         setting: CURRENT_SETTING,

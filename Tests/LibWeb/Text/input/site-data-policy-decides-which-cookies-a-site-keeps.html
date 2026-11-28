@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<script src="include.js"></script>
+<script>
+    // The user's rules for site data are found by the site of the top-level document. A site that blocks third-party
+    // cookies keeps its own, and the frames of other sites on its pages read and set none. A site that blocks cookies
+    // keeps none at all.
+    asyncTest(async done => {
+        const server = httpTestServer();
+        const runId = crypto.randomUUID();
+        const widgetSite = uniqueLocalhostHostname("widget-site");
+        const strictSite = uniqueLocalhostHostname("strict-site");
+        const plainSite = uniqueLocalhostHostname("plain-site");
+        const blockedSite = uniqueLocalhostHostname("blocked-site");
+
+        const echo = async (host, path, response) => {
+            const url = new URL(
+                await server.createEcho("GET", `/site-data-policy/${runId}/${path}`, { status: 200, ...response })
+            );
+            url.hostname = host;
+            return url.href;
+        };
+
+        // A page that sets a cookie over HTTP and one from script, reports the cookies its requests carry and the
+        // cookies its script sees, and then shows a frame, if it is given one.
+        const cookiePage = async (host, name, frameURL) => {
+            const setCookieURL = await echo(host, `${name}/set-cookie`, {
+                headers: { "Set-Cookie": "http=1; Path=/; SameSite=None; Secure", "Cache-Control": "no-store" },
+            });
+            const readCookiesURL = await echo(host, `${name}/read-cookies`, {
+                headers: { "Cache-Control": "no-store" },
+                reflect_headers_in_body: true,
+            });
+            const script = `(async () => {
+                await fetch(${JSON.stringify(setCookieURL)});
+                const headers = await (await fetch(${JSON.stringify(readCookiesURL)})).json();
+                const sent = (headers["Cookie"] ?? headers["cookie"] ?? ["(none)"]).join("; ");
+                document.cookie = "script=1; Path=/; SameSite=None; Secure";
+                const seen = document.cookie.split("; ").sort().join("; ") || "(none)";
+                (window.opener ?? window.top.opener).postMessage({ name: ${JSON.stringify(name)}, sent, seen }, "*");
+                if (${JSON.stringify(frameURL)}) {
+                    const iframe = document.createElement("iframe");
+                    iframe.src = ${JSON.stringify(frameURL)};
+                    document.body.appendChild(iframe);
+                }
+            })();`;
+            return echo(host, `${name}/page.html`, {
+                headers: { "Content-Type": "text/html", "Cache-Control": "no-store" },
+                body: `<!DOCTYPE html><body><script>${script}<\/script>`,
+            });
+        };
+
+        const waitForReport = name =>
+            new Promise(resolve => {
+                window.addEventListener("message", function listener(event) {
+                    if (event.data?.name !== name)
+                        return;
+                    window.removeEventListener("message", listener);
+                    resolve(`requests carry ${event.data.sent}, script sees ${event.data.seen}`);
+                });
+            });
+
+        // Opens a page of the site with a frame of the widget site, and prints what each of the two reports.
+        const visit = async (site, name) => {
+            const pageReport = waitForReport(`${name}-page`);
+            const frameReport = waitForReport(`${name}-frame`);
+            const frameURL = await cookiePage(widgetSite, `${name}-frame`, null);
+            const popup = window.open(await cookiePage(site, `${name}-page`, frameURL));
+            println(`  The page: ${await pageReport}`);
+            println(`  A frame of another site: ${await frameReport}`);
+            popup.close();
+        };
+
+        internals.setSiteDataPolicyForSite(strictSite, "block-third-party");
+        internals.setSiteDataPolicyForSite(blockedSite, "block");
+
+        try {
+            println("A site that blocks third-party cookies:");
+            await visit(strictSite, "strict");
+
+            println("A site without an exception:");
+            await visit(plainSite, "plain");
+
+            println("A site that blocks cookies:");
+            await visit(blockedSite, "blocked");
+
+            internals.setSiteDataPolicyForSite(strictSite, "allow");
+            println("The first site again, now that it allows cookies:");
+            await visit(strictSite, "allowed");
+        } finally {
+            internals.setSiteDataPolicyForSite(strictSite, null);
+            internals.setSiteDataPolicyForSite(blockedSite, null);
+        }
+
+        done();
+    });
+</script>

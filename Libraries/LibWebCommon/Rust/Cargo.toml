@@ -11,6 +11,7 @@ ak = { path = "../../../AK/Rust" }
 ladybird_allocator = { path = "../../RustAllocator", optional = true }
 libhttp_rust = { path = "../../LibHTTP/Rust" }
 liburl_rust = { path = "../../LibURL/Rust", default-features = false }
+libwebcommon_site_data_policy_rust = { path = "../SiteDataPolicy/Rust" }
 rustc-demangle = "0.1"
 
 [features]
