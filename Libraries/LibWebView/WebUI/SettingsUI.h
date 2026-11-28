@@ -54,6 +54,7 @@ private:
     virtual void browsing_behavior_changed() override { broadcast_settings_change(); }
     virtual void search_engine_settings_changed() override { broadcast_settings_change(); }
     virtual void autoplay_settings_changed() override { broadcast_settings_change(); }
+    virtual void site_data_settings_changed() override { broadcast_settings_change(); }
     virtual void global_privacy_control_changed() override { broadcast_settings_change(); }
     virtual void crash_report_sending_changed() override { broadcast_settings_change(); }
     virtual void crash_reports_changed() override;

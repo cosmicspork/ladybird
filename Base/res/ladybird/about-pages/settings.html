@@ -1336,6 +1336,20 @@
                 <div class="card">
                     <div class="card-body">
                         <div class="card-group inline-container control-row">
+                            <label for="cookies-policy">
+                                Cookies
+                                <p class="description">Sites can keep cookies, which they use to remember you.</p>
+                            </label>
+                            <div class="setting-controls">
+                                <select id="cookies-policy">
+                                    <option value="allow">Allow</option>
+                                    <option value="block-third-party">Block from other sites</option>
+                                    <option value="block">Block</option>
+                                </select>
+                                <button id="cookies-settings" class="secondary-button row-action">Exceptions…</button>
+                            </div>
+                        </div>
+                        <div class="card-group inline-container control-row">
                             <label for="autoplay-policy">
                                 Autoplay
                                 <p class="description">Sites can play audio and video on their own.</p>
