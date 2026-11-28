@@ -55,6 +55,54 @@ static Utf16String partition_key_for(URL::URL const& url, Optional<HTTP::Cookie:
     return context->top_level_site;
 }
 
+// The partition of the cookies that a context may use for url, or nothing if the user's rules for site data deny the
+// context cookies.
+Optional<Utf16String> CookieJar::permitted_partition_key_for(URL::URL const& url, Optional<HTTP::Cookie::PartitionContext> const& context) const
+{
+    auto partition_key = partition_key_for(url, context);
+    if (m_site_data_rules.allow_everything())
+        return partition_key;
+
+    // NB: A request without a context is made in a first-party context of its own site, which then is the top-level
+    //     site. A URL of no site has no exception.
+    String top_level_site;
+    if (context.has_value()) {
+        top_level_site = context->top_level_site.to_utf8();
+    } else {
+        auto http_url = url;
+        if (url.scheme() == "ws"sv)
+            http_url.set_scheme("http"_string);
+        else if (url.scheme() == "wss"sv)
+            http_url.set_scheme("https"_string);
+        if (auto site = URL::Site::serialize_for_partitioning(http_url.origin()); site.has_value())
+            top_level_site = site->to_utf8();
+    }
+
+    auto is_third_party = !partition_key.is_empty();
+    switch (m_site_data_rules.cookie_access(top_level_site, is_third_party)) {
+    case Web::StorageAPI::SiteDataAccess::Denied:
+        return {};
+    case Web::StorageAPI::SiteDataAccess::FirstParty:
+        VERIFY(!is_third_party);
+        break;
+    case Web::StorageAPI::SiteDataAccess::Partitioned:
+        VERIFY(is_third_party);
+        break;
+    }
+    return partition_key;
+}
+
+void CookieJar::set_site_data_rules(Web::StorageAPI::SiteDataRules rules)
+{
+    m_site_data_rules = move(rules);
+
+    // NB: A document keeps the cookies it read until it hears that the cookies of its domain changed.
+    ViewImplementation::for_each_view([](ViewImplementation& view) {
+        view.notify_cookie_access_changed();
+        return IterationDecision::Continue;
+    });
+}
+
 ErrorOr<Database::MigrationOutcome> CookieJar::migrate_schema(Database::Database& database, Database::MigrationMode mode)
 {
     // Shipped migration text is immutable, so the CHECK constraint hardcodes the largest
@@ -194,7 +242,11 @@ String CookieJar::get_cookie(URL::URL const& url, HTTP::Cookie::Source source, O
 {
     m_transient_storage.purge_expired_cookies();
 
-    auto cookie_list = get_matching_cookies(url, source, partition_key_for(url, context), same_site_context);
+    auto partition_key = permitted_partition_key_for(url, context);
+    if (!partition_key.has_value())
+        return {};
+
+    auto cookie_list = get_matching_cookies(url, source, *partition_key, same_site_context);
 
     // 6. Serialize the cookie-list into a cookie-string by processing each cookie in the cookie-list in order:
     StringBuilder builder;
@@ -221,6 +273,9 @@ String CookieJar::get_cookie(URL::URL const& url, HTTP::Cookie::Source source, O
 void CookieJar::set_cookie(URL::URL const& url, HTTP::Cookie::ParsedCookie const& parsed_cookie, HTTP::Cookie::Source source, Optional<HTTP::Cookie::PartitionContext> const& context, HTTP::Cookie::SameSiteContext same_site_context)
 {
     // 1. A user agent MAY ignore a received cookie in its entirety. See Section 5.3.
+    auto partition_key = permitted_partition_key_for(url, context);
+    if (!partition_key.has_value())
+        return;
 
     // 2. If cookie-name is empty and cookie-value is empty, abort this algorithm and ignore the cookie entirely.
     if (parsed_cookie.name.is_empty() && parsed_cookie.value.is_empty())
@@ -243,7 +298,7 @@ void CookieJar::set_cookie(URL::URL const& url, HTTP::Cookie::ParsedCookie const
     HTTP::Cookie::Cookie cookie { parsed_cookie.name, parsed_cookie.value };
     cookie.creation_time = UnixDateTime::now();
     cookie.last_access_time = cookie.creation_time;
-    cookie.partition_key = partition_key_for(url, context);
+    cookie.partition_key = partition_key.release_value();
 
     // 6. If the cookie-attribute-list contains an attribute with an attribute-name of "Max-Age":
     if (parsed_cookie.expiry_time_from_max_age_attribute.has_value()) {
@@ -615,7 +670,11 @@ Vector<HTTP::Cookie::Cookie> CookieJar::get_all_cookies_webdriver(URL::URL const
 
 Vector<HTTP::Cookie::Cookie> CookieJar::get_all_cookies_cookiestore(URL::URL const& url, Optional<HTTP::Cookie::PartitionContext> const& context, HTTP::Cookie::SameSiteContext same_site_context)
 {
-    return get_matching_cookies(url, HTTP::Cookie::Source::NonHttp, partition_key_for(url, context), same_site_context);
+    auto partition_key = permitted_partition_key_for(url, context);
+    if (!partition_key.has_value())
+        return {};
+
+    return get_matching_cookies(url, HTTP::Cookie::Source::NonHttp, *partition_key, same_site_context);
 }
 
 Optional<HTTP::Cookie::Cookie> CookieJar::get_named_cookie(URL::URL const& url, StringView name)

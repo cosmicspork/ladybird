@@ -429,6 +429,8 @@ public:
     void update_system_theme(Core::AnonymousBuffer const&);
 
     void notify_cookies_changed(HashTable<String> const& changed_domains, ReadonlySpan<HTTP::Cookie::Cookie> page_cookies, ReadonlySpan<HTTP::Cookie::Cookie> host_cookies);
+    // The cookies a document may use changed without any cookie changing, so every document asks for its cookies again.
+    void notify_cookie_access_changed();
     void listen_for_host_cookie_changes(DevTools::DevToolsDelegate::OnHostCookieChange);
     void stop_listening_for_host_cookie_changes();
     void notify_indexed_database_changed(JsonObject);
