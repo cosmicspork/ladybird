@@ -2198,8 +2198,13 @@ dependencies = [
  "ladybird_allocator",
  "libhttp_rust",
  "liburl_rust",
+ "libwebcommon_site_data_policy_rust",
  "rustc-demangle",
 ]
+
+[[package]]
+name = "libwebcommon_site_data_policy_rust"
+version = "0.1.0"
 
 [[package]]
 name = "libxml_rust"
