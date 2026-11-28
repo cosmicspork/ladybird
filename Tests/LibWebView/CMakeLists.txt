@@ -97,6 +97,7 @@ set(TEST_SOURCES
     TestSessionHistory.cpp
     TestSessionHistoryTraversalQueue.cpp
     TestSiteCompatibilityDataLoading.cpp
+    TestSiteDataSettings.cpp
     TestStartupSettings.cpp
     TestStorageAreaRegistry.cpp
     TestStorageJar.cpp

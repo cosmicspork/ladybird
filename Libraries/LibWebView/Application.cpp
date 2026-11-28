@@ -168,6 +168,11 @@ struct ApplicationSettingsObserver final : public SettingsObserver {
         Application::the().permission_settings_changed({});
     }
 
+    virtual void site_data_settings_changed() override
+    {
+        Application::the().site_data_settings_changed({});
+    }
+
     virtual void config_variable_changed(ConfigVariableID id) override
     {
         if (id == ConfigVariableID::MaximumDiskCacheSize)
@@ -1255,6 +1260,7 @@ NonnullRefPtr<BrowsingSession> Application::session_for_new_view(IsPrivate is_pr
     session->permission_manager = PermissionManager::create_for_private_session(*the().m_default_session->permission_manager);
     session->permission_manager->register_observer(*the().m_permission_manager_observer);
     session->permission_manager->on_deadlines_changed = [] { the().schedule_permission_expiry(); };
+    session->cookie_jar->set_site_data_rules(the().m_settings->site_data_rules());
     the().m_private_session = session;
     return session;
 }
@@ -1970,6 +1976,7 @@ ErrorOr<void> Application::launch_services()
     }
 
     m_default_session->blob_url_store = make<BlobURLStore>();
+    m_default_session->cookie_jar->set_site_data_rules(m_settings->site_data_rules());
 
     m_file_downloader.adopt_download_store({}, *m_download_store);
 
@@ -3132,6 +3139,15 @@ void Application::schedule_permission_expiry()
 void Application::permission_settings_changed(Badge<ApplicationSettingsObserver>)
 {
     update_permission_defaults();
+}
+
+// The cookie jar of each session decides by the user's rules for site data, and is told when they change.
+void Application::site_data_settings_changed(Badge<ApplicationSettingsObserver>)
+{
+    auto rules = m_settings->site_data_rules();
+    if (auto session = m_private_session.strong_ref())
+        session->cookie_jar->set_site_data_rules(rules);
+    m_default_session->cookie_jar->set_site_data_rules(move(rules));
 }
 
 void Application::update_os_location_authorization()

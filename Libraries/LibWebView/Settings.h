@@ -19,6 +19,7 @@
 #include <LibURL/URL.h>
 #include <LibWebCommon/HTML/AutoplayPolicy.h>
 #include <LibWebCommon/Permissions/Permissions.h>
+#include <LibWebCommon/StorageAPI/SiteDataPolicy.h>
 #include <LibWebCommon/WebView/BrowsingBehavior.h>
 #include <LibWebView/Forward.h>
 #include <LibWebView/Options.h>
@@ -126,6 +127,10 @@ struct SiteSetting {
 
 using AutoplaySiteSetting = SiteSetting<Web::HTML::AutoplayPolicy, Web::HTML::AutoplayPolicy::BlockAudio>;
 
+// Which sites may keep cookies. A site filter is a site in the spelling of Web::StorageAPI::normalize_site_data_site(),
+// and is found by the site of the top-level document.
+using SiteDataSiteSetting = SiteSetting<Web::StorageAPI::SiteDataPolicy, Web::StorageAPI::SiteDataPolicy::Allow>;
+
 enum class PermissionPolicy : u8 {
     Ask,
     Block,
@@ -203,6 +208,7 @@ public:
     virtual void browsing_behavior_changed() { }
     virtual void search_engine_settings_changed() { }
     virtual void autoplay_settings_changed() { }
+    virtual void site_data_settings_changed() { }
     virtual void permission_settings_changed(Web::Permissions::PermissionName) { }
     virtual void global_privacy_control_changed() { }
     virtual void crash_report_sending_changed() { }
@@ -235,6 +241,7 @@ struct WEBVIEW_API SettingsData {
     Vector<SearchEngine> m_custom_search_engines;
 
     AutoplaySiteSetting m_autoplay;
+    SiteDataSiteSetting m_site_data;
     HashMap<Web::Permissions::PermissionName, PermissionPolicy> m_permission_policies;
 
     GlobalPrivacyControl m_global_privacy_control { GlobalPrivacyControl::No };
@@ -342,6 +349,15 @@ public:
     void add_autoplay_site_filter(String const&, Web::HTML::AutoplayPolicy);
     void remove_autoplay_site_filter(String const&);
     void remove_all_autoplay_site_filters();
+
+    SiteDataSiteSetting const& site_data_settings() const { return m_site_data; }
+    // The saved policy and site filters as rules that can be asked.
+    Web::StorageAPI::SiteDataRules site_data_rules() const;
+    void set_site_data_policy(Web::StorageAPI::SiteDataPolicy);
+    // The site may be written as the user would, with a scheme, a port or a path. Text that names no site is an error.
+    ErrorOr<void> add_site_data_site_filter(StringView site, Web::StorageAPI::SiteDataPolicy);
+    void remove_site_data_site_filter(StringView site);
+    void remove_all_site_data_site_filters();
 
     PermissionPolicy permission_policy(Web::Permissions::PermissionName) const;
     void set_permission_policy(Web::Permissions::PermissionName, PermissionPolicy);
