@@ -8,5 +8,5 @@ A site that blocks cookies:
   The page: requests carry (none), script sees (none)
   A frame of another site: requests carry (none), script sees (none)
 The first site again, now that it allows cookies:
-  The page: requests carry http=1, script sees http=1; script=1
+  The page: requests carry http=1; script=1, script sees http=1; script=1
   A frame of another site: requests carry http=1, script sees http=1; script=1
