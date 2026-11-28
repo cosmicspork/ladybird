@@ -316,6 +316,7 @@ private:
     virtual void page_did_set_cookie(Optional<Web::HTML::EnvironmentId> const&, URL::URL const&, HTTP::Cookie::ParsedCookie const&, HTTP::Cookie::Source) override;
     virtual void page_did_update_cookie(HTTP::Cookie::Cookie const&) override;
     virtual void page_did_expire_cookies_with_time_offset(AK::Duration) override;
+    virtual void page_did_set_site_data_policy_for_site_for_testing(String const&, Optional<Web::StorageAPI::SiteDataPolicy>) override;
     virtual void page_did_delete_all_cookies(URL::URL const&, GC::Ref<Web::WebIDL::Promise>) override;
     virtual void page_did_lose_request_server_connection(Optional<Utf16String> const& top_level_site) override;
     virtual void page_did_simulate_worker_request_server_connection_loss() override;

@@ -176,6 +176,7 @@ public:
     void clear_storage_for_testing(Utf16String const& type);
     GC::Ref<WebIDL::Promise> delete_all_cookies();
     WebIDL::ExceptionOr<bool> has_cookie_for_url(Utf16String const& url, String const& name, String const& value);
+    WebIDL::ExceptionOr<void> set_site_data_policy_for_site(Utf16String const& site, Optional<Utf16String> const& policy);
 
     bool set_http_memory_cache_enabled(bool enabled);
     bool functions_share_code(JS::Value a, JS::Value b);

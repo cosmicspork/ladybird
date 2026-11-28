@@ -1687,6 +1687,13 @@ void PageClient::page_did_expire_cookies_with_time_offset(AK::Duration offset)
     }
 }
 
+void PageClient::page_did_set_site_data_policy_for_site_for_testing(String const& site, Optional<Web::StorageAPI::SiteDataPolicy> policy)
+{
+    // NB: Synchronous, so the rules are in place before whatever the test does next asks for a cookie.
+    if (auto* test_connection = client().test_connection())
+        test_connection->did_set_site_data_policy_for_site_for_testing(site, policy.map([](auto policy) { return to_underlying(policy); }));
+}
+
 void PageClient::page_did_delete_all_cookies(URL::URL const& url, GC::Ref<Web::WebIDL::Promise> promise)
 {
     auto request_id = m_next_delete_all_cookies_request_id++;

@@ -189,6 +189,10 @@ interface Internals {
     undefined clearStorageForTesting(DOMString type);
     Promise<undefined> deleteAllCookies();
     boolean hasCookieForURL(DOMString url, ByteString name, ByteString value);
+    // Makes an exception to the user's rules for site data for the pages of a site ("allow", "block-third-party" or
+    // "block"), or removes the site's exception (null). The rules are those of the whole browser, so a test only makes
+    // exceptions for sites that no other test uses.
+    undefined setSiteDataPolicyForSite(DOMString site, DOMString? policy);
 
     boolean setHttpMemoryCacheEnabled(boolean enabled);
     // Whether two functions run the same compiled code, which compiles them if they did not run yet.

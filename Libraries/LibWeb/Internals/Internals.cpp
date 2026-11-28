@@ -136,6 +136,7 @@
 #include <LibWebCommon/Clipboard/SystemClipboard.h>
 #include <LibWebCommon/Page/DragEvent.h>
 #include <LibWebCommon/Page/InputEvent.h>
+#include <LibWebCommon/StorageAPI/SiteDataPolicy.h>
 #include <LibWebCommon/StorageAPI/StorageEndpoint.h>
 #include <LibWebCommon/WebDriver/Response.h>
 #include <LibWebCommon/WebView/AccessibilityNodeData.h>
@@ -1463,6 +1464,23 @@ WebIDL::ExceptionOr<bool> Internals::has_cookie_for_url(Utf16String const& url, 
 
     auto partition_key = Fetch::Infrastructure::determine_the_network_partition_key(window().associated_document().relevant_settings_object());
     return partition_key.has_value() && has_cookie(HTTP::Cookie::PartitionContext { partition_key->top_level_site, partition_key->has_cross_site_ancestor });
+}
+
+WebIDL::ExceptionOr<void> Internals::set_site_data_policy_for_site(Utf16String const& site, Optional<Utf16String> const& policy)
+{
+    auto normalized_site = StorageAPI::normalize_site_data_site(site.to_utf8());
+    if (!normalized_site.has_value())
+        return WebIDL::SimpleException { .type = WebIDL::SimpleExceptionType::TypeError, .message = Utf16String::formatted("Not a site: '{}'", site) };
+
+    Optional<StorageAPI::SiteDataPolicy> parsed_policy;
+    if (policy.has_value()) {
+        parsed_policy = StorageAPI::site_data_policy_from_string(policy->to_utf8());
+        if (!parsed_policy.has_value())
+            return WebIDL::SimpleException { .type = WebIDL::SimpleExceptionType::TypeError, .message = Utf16String::formatted("Not a site data policy: '{}'", *policy) };
+    }
+
+    page().client().page_did_set_site_data_policy_for_site_for_testing(normalized_site.release_value(), parsed_policy);
+    return {};
 }
 
 bool Internals::set_http_memory_cache_enabled(bool enabled)
